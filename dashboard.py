@@ -124,6 +124,37 @@ def discord_avatar_url(discord_id, avatar_hash, size=128):
         return f"https://cdn.discordapp.com/avatars/{discord_id}/{avatar_hash}.png?size={size}"
     return "https://cdn.discordapp.com/embed/avatars/0.png"
 
+# ========== FUNÇÃO PARA ESTATÍSTICAS ==========
+async def get_estatisticas_membro(discord_id):
+    conn = await get_db()
+    try:
+        internos = await conn.fetchval("""
+            SELECT COUNT(*)
+            FROM presencas_treino p
+            JOIN treinos t ON p.treino_id = t.id_treino
+            WHERE p.membro_id = $1 AND p.presenca = 'Presente' AND t.tipo = 'Interno'
+        """, discord_id)
+
+        amistosos = await conn.fetchval("""
+            SELECT COUNT(*)
+            FROM presencas_treino p
+            JOIN treinos t ON p.treino_id = t.id_treino
+            WHERE p.membro_id = $1 AND p.presenca = 'Presente' AND t.tipo = 'Amistoso'
+        """, discord_id)
+
+        try:
+            guerras = await conn.fetchval("""
+                SELECT COUNT(*)
+                FROM participacoes_guerra
+                WHERE membro_id = $1
+            """, discord_id)
+        except:
+            guerras = 0
+
+        return {"internos": internos, "amistosos": amistosos, "guerras": guerras}
+    finally:
+        await conn.close()
+
 # ========== FUNÇÕES COM CACHE ==========
 @st.cache_data(ttl=60)
 def carregar_membros():
@@ -271,6 +302,15 @@ with tabs[1]:
                         st.markdown(f"**Divisão:** {m['divisao'] or 'Sem divisão'}")
                         st.markdown(f"**Status:** {m['status']}")
                         st.markdown(f"**Entrada:** {m['data_entrada']}")
+
+                    # Estatísticas de participação
+                    stats = asyncio.run(get_estatisticas_membro(m["discord_id"]))
+                    st.divider()
+                    st.markdown("### 📈 Estatísticas")
+                    col_st1, col_st2, col_st3 = st.columns(3)
+                    col_st1.metric("Treinos Internos", stats["internos"])
+                    col_st2.metric("Treinos Amistosos", stats["amistosos"])
+                    col_st3.metric("Guerras", stats["guerras"])
 
                     if pode_gerenciar_membros:
                         st.divider()
