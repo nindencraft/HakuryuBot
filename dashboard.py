@@ -151,10 +151,11 @@ def carregar_dados_completos():
         conn = await get_db()
         try:
             membros = await conn.fetch("""
-                SELECT discord_id, discord_username, nome_roblox, nome_rp, genero, altura_jogo,
-                       estilo_luta_principal, cargo, divisao, status, data_entrada, avatar_hash
-                FROM membros
-                ORDER BY data_entrada DESC
+                SELECT m.discord_id, m.discord_username, m.nome_roblox, m.nome_rp, m.genero, m.altura_jogo,
+                       m.estilo_luta_principal, m.cargo, d.nome_divisao as divisao, m.status, m.data_entrada, m.avatar_hash
+                FROM membros m
+                LEFT JOIN divisoes d ON m.divisao_id = d.id
+                ORDER BY m.data_entrada DESC
             """)
 
             warns = await conn.fetch("""
