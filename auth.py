@@ -9,7 +9,7 @@ if os.path.exists(".env"):
 
 CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", st.secrets.get("DISCORD_CLIENT_ID", ""))
 CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", st.secrets.get("DISCORD_CLIENT_SECRET", ""))
-REDIRECT_URI = os.getenv("DISCORD_REDIRECT_URI", st.secrets.get("DISCORD_REDIRECT_URI", ""))
+REDIRECT_URI = "https://hakuryubot-p9s7blcsjpkzdnkjxxqvdq.streamlit.app/"
 GUILD_ID = os.getenv("DISCORD_GUILD_ID", st.secrets.get("DISCORD_GUILD_ID", ""))
 DONO_ID = os.getenv("DONO_DISCORD_ID", st.secrets.get("DONO_DISCORD_ID", ""))
 
