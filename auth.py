@@ -57,8 +57,8 @@ def autenticar():
         user_info = get_user_info(token_data["access_token"])
         member_info = get_guild_member(token_data["access_token"])
         cargos = []
-        if member_info:
-            cargos = [role["name"] for role in member_info.get("roles", [])]
+        if member_info and isinstance(member_info, dict):
+            cargos = [role["name"] for role in member_info.get("roles", []) if isinstance(role, dict)]
         st.session_state.user = {
             "id": user_info["id"],
             "nome": user_info["username"],
