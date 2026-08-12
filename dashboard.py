@@ -229,30 +229,72 @@ with tabs[0]:
 with tabs[1]:
     st.header("👥 Membros")
     st.subheader(f"Total exibido: {len(membros_filtrados)}")
+
+    # Verificar se é liderança máxima (pode editar cargos e remover)
+    pode_gerenciar_membros = tem_cargo("Lider") or tem_cargo("Vice-Lider")
+
     if not membros_filtrados:
         st.info("Nenhum membro encontrado com os filtros.")
     else:
-        cols = st.columns(3)
         for idx, m in enumerate(membros_filtrados):
-            with cols[idx % 3]:
-                avatar_url = discord_avatar_url(m["discord_id"], m["avatar_hash"])
-                st.image(avatar_url, width=100)
+            with st.container():
+                col1, col2, col3 = st.columns([3, 2, 1])
+                with col1:
+                    avatar_url = discord_avatar_url(m["discord_id"], m["avatar_hash"])
+                    st.image(avatar_url, width=80)
+                    nome_principal = m["nome_rp"] or m["discord_username"]
+                    st.markdown(f"**{nome_principal}**")
+                    st.caption(f"Discord: {m['discord_username']}")
+                    st.caption(f"🎮 Roblox: {m['nome_roblox']}")
+                    if m["nome_rp"]:
+                        st.caption(f"📜 RP: {m['nome_rp']}")
+                    divisao = m["divisao"] or "Sem divisão"
+                    st.caption(f"🔰 Divisão: **{divisao}**")
+                    if m["altura_jogo"]:
+                        st.caption(f"📏 Altura: {m['altura_jogo']}m")
+                    if m["estilo_luta_principal"]:
+                        st.caption(f"🥋 Estilo: {m['estilo_luta_principal']}")
 
-                nome_principal = m["nome_rp"] or m["discord_username"]
-                st.markdown(f"**{nome_principal}**")
-                st.caption(f"Discord: {m['discord_username']}")
-                st.caption(f"🎮 Roblox: {m['nome_roblox']}")
-                if m["nome_rp"]:
-                    st.caption(f"📜 RP: {m['nome_rp']}")
-                divisao = m["divisao"] or "Sem divisão"
-                st.caption(f"🔰 Divisão: **{divisao}**")
-                st.caption(f"⚜️ Cargo: {m['cargo']} | Status: {m['status']}")
-                if m["altura_jogo"]:
-                    st.caption(f"📏 Altura: {m['altura_jogo']}m")
-                if m["estilo_luta_principal"]:
-                    st.caption(f"🥋 Estilo: {m['estilo_luta_principal']}")
-                st.markdown("---")
+                with col2:
+                    st.markdown("**⚜️ Cargo Atual:**")
+                    st.write(m["cargo"])
 
+                    if pode_gerenciar_membros:
+                        novo_cargo = st.selectbox(
+                            "Alterar cargo",
+                            ["Recruta", "Membro", "Líder de Divisão", "Staff", "Recrutador", "Vice-Lider", "Lider"],
+                            index=["Recruta", "Membro", "Líder de Divisão", "Staff", "Recrutador", "Vice-Lider", "Lider"].index(m["cargo"]) if m["cargo"] in ["Recruta", "Membro", "Líder de Divisão", "Staff", "Recrutador", "Vice-Lider", "Lider"] else 0,
+                            key=f"cargo_{m['discord_id']}"
+                        )
+                        if novo_cargo != m["cargo"]:
+                            if st.button("Salvar cargo", key=f"salvar_cargo_{m['discord_id']}"):
+                                async def atualizar_cargo():
+                                    conn = await get_db()
+                                    try:
+                                        await conn.execute(
+                                            "UPDATE membros SET cargo = $1 WHERE discord_id = $2",
+                                            novo_cargo, m["discord_id"]
+                                        )
+                                    finally:
+                                        await conn.close()
+                                asyncio.run(atualizar_cargo())
+                                st.success(f"Cargo de {nome_principal} atualizado para {novo_cargo}!")
+                                st.cache_data.clear()
+                                st.rerun()
+
+                with col3:
+                    if pode_gerenciar_membros:
+                        if st.button("🗑️ Remover", key=f"remover_{m['discord_id']}"):
+                            async def remover_membro():
+                                conn = await get_db()
+                                try:
+                                    await conn.execute("DELETE FROM membros WHERE discord_id = $1", m["discord_id"])
+                                finally:
+                                    await conn.close()
+                            asyncio.run(remover_membro())
+                            st.success(f"{nome_principal} removido do registro.")
+                            st.cache_data.clear()
+                            st.rerun()
 # ========== ABA TREINOS ==========
 with tabs[2]:
     st.header("🗓️ Mural de Treinos")
