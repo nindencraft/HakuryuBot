@@ -21,8 +21,9 @@ if not esta_logado():
 
 # Mostrar usuário logado
 st.sidebar.image(st.session_state.user["avatar"], width=80)
-st.sidebar.markdown(f"**{st.session_state.user['nome']}**")
-st.sidebar.markdown(f"ID: `{st.session_state.user['id']}`")
+nome_exibicao = st.session_state.user.get("nome_rp") or st.session_state.user["nome"]
+st.sidebar.markdown(f"**{nome_exibicao}**")
+st.sidebar.caption(f"Discord: {st.session_state.user['nome']}")
 
 # Controle de acesso: só membros da gang podem ver o restante
 cargos_permitidos = ["Lider", "Vice-Lider", "Líder de Divisão", "Staff", "Recrutador", "Membro", "Em Analise"]
@@ -70,7 +71,7 @@ async def get_treinos():
 async def get_membros_ativos():
     conn = await get_db()
     try:
-        return await conn.fetch("SELECT discord_id, discord_username FROM membros WHERE status = 'Ativo' ORDER BY discord_username")
+        return await conn.fetch("SELECT discord_id, discord_username, nome_rp FROM membros WHERE status = 'Ativo' ORDER BY nome_rp")
     finally:
         await conn.close()
 
@@ -136,8 +137,12 @@ with tabs[1]:
             with cols[idx % 3]:
                 avatar_url = discord_avatar_url(m["discord_id"], m["avatar_hash"])
                 st.image(avatar_url, width=100)
-                discord_nome = m["discord_username"] or f"ID: {m['discord_id']}"
-                st.markdown(f"**{discord_nome}**")
+
+                # Nome RP como principal, Discord como secundário
+                nome_principal = m["nome_rp"] or m["discord_username"]
+                st.markdown(f"**{nome_principal}**")
+                st.caption(f"Discord: {m['discord_username']}")
+
                 st.caption(f"🎮 Roblox: {m['nome_roblox']}")
                 if m["nome_rp"]:
                     st.caption(f"📜 RP: {m['nome_rp']}")
@@ -163,7 +168,7 @@ with tabs[2]:
             tipo = st.selectbox("Tipo", ["Interno", "Amistoso", "Obrigatório", "Extra"])
             local = st.text_input("Local (ex: Arena 1, Roblox)")
             divisao = st.text_input("Divisão responsável (opcional)")
-        
+
             submitted = st.form_submit_button("Criar Treino")
             if submitted:
                 async def inserir_treino():
@@ -173,8 +178,8 @@ with tabs[2]:
                             """
                             INSERT INTO treinos (titulo, descricao, data_treino, horario, tipo, local, divisao_responsavel, criado_por)
                             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                        """,
-                        titulo, descricao, data_treino, horario, tipo, local, divisao, st.session_state.user["id"]
+                            """,
+                            titulo, descricao, data_treino, horario, tipo, local, divisao, st.session_state.user["id"]
                         )
                     finally:
                         await conn.close()
@@ -195,9 +200,14 @@ with tabs[2]:
                 st.caption(f"Inscritos: {t['inscritos']}")
 
                 with st.expander("📝 Inscrição de presença", expanded=False):
-                    nomes_membros = {m["discord_username"]: m["discord_id"] for m in membros_ativos}
+                    # Dicionário com nome RP como chave principal
+                    nomes_membros = {}
+                    for m in membros_ativos:
+                        nome_principal = m["nome_rp"] or m["discord_username"]
+                        nomes_membros[nome_principal] = m["discord_id"]
                     membro_selecionado = st.selectbox("Selecione o membro", list(nomes_membros.keys()), key=f"membro_{t['id_treino']}")
                     inscricao = st.radio("Confirmação", ["Confirmado", "Recusado", "Pendente"], key=f"inscricao_{t['id_treino']}")
+
                     if st.button("Registrar inscrição", key=f"btn_inscricao_{t['id_treino']}"):
                         async def inserir_inscricao():
                             conn = await get_db()
@@ -222,7 +232,7 @@ with tabs[2]:
                         conn = await get_db()
                         try:
                             return await conn.fetch("""
-                                SELECT p.membro_id, m.discord_username, p.inscricao, p.presenca
+                                SELECT p.membro_id, m.discord_username, m.nome_rp, p.inscricao, p.presenca
                                 FROM presencas_treino p
                                 JOIN membros m ON p.membro_id = m.discord_id
                                 WHERE p.treino_id = $1
@@ -235,7 +245,11 @@ with tabs[2]:
                     else:
                         for p in presencas:
                             col1, col2, col3, col4 = st.columns([3,2,2,2])
-                            col1.write(p["discord_username"])
+                            # Nome RP em destaque, Discord embaixo
+                            nome_rp = p["nome_rp"] or p["discord_username"]
+                            col1.markdown(f"**{nome_rp}**")
+                            col1.caption(f"Discord: {p['discord_username']}")
+
                             col2.write(f"Inscrição: {p['inscricao']}")
                             nova_presenca = col3.selectbox(
                                 "Presença",

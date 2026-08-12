@@ -2,6 +2,8 @@ import os
 import requests
 from oauthlib.oauth2 import WebApplicationClient
 import streamlit as st
+import asyncio
+from database import get_db
 
 if os.path.exists(".env"):
     from dotenv import load_dotenv
@@ -68,6 +70,13 @@ def autenticar():
             "avatar": f"https://cdn.discordapp.com/avatars/{user_info['id']}/{user_info['avatar']}.png?size=128" if user_info["avatar"] else "https://cdn.discordapp.com/embed/avatars/0.png",
             "cargos": cargos
         }
+        async def buscar_nome_rp(discord_id):
+            conn = await get_db()
+            try:
+                row = await conn.fetchrow("SELECT nome_rp, discord_username FROM membros WHERE discord_id = $1", discord_id)
+                return row["nome_rp"] if row else None
+            finally:
+                await conn.close()
         # Limpa a URL removendo o parâmetro 'code' para evitar loop
         st.markdown(
             """
@@ -82,6 +91,8 @@ def autenticar():
             unsafe_allow_html=True
         )
         st.query_params.clear()
+        nome_rp = asyncio.run(buscar_nome_rp(st.session_state.user["id"]))
+        st.session_state.user["nome_rp"] = nome_rp
 
 def esta_logado():
     return "user" in st.session_state
