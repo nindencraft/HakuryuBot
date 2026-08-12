@@ -402,18 +402,21 @@ with tabs[2]:
                 col3.caption(f"Status: {t['status']}")
                 st.caption(f"Inscritos: {t['inscritos']}")
 
+                # Botão de deletar em formulário separado
                 if pode_gerenciar_presenca:
-                    if st.button("🗑️ Deletar treino", key=f"del_{t['id_treino']}"):
-                        async def deletar_treino():
-                            conn = await get_db()
-                            try:
-                                await conn.execute("DELETE FROM treinos WHERE id_treino = $1", t['id_treino'])
-                            finally:
-                                await conn.close()
-                        asyncio.run(deletar_treino())
-                        st.success("Treino deletado!")
-                        st.cache_data.clear()
-                        st.rerun()
+                    with st.form(f"form_deletar_{t['id_treino']}"):
+                        delete_submitted = st.form_submit_button("🗑️ Deletar treino")
+                        if delete_submitted:
+                            async def deletar_treino():
+                                conn = await get_db()
+                                try:
+                                    await conn.execute("DELETE FROM treinos WHERE id_treino = $1", t['id_treino'])
+                                finally:
+                                    await conn.close()
+                            asyncio.run(deletar_treino())
+                            st.success("Treino deletado!")
+                            st.cache_data.clear()
+                            st.rerun()
 
                 with st.expander("📝 Inscrição de presença", expanded=False):
                     nomes_membros = {}
