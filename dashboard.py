@@ -18,101 +18,157 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    /* Fundo geral branco suave */
+    /* ========== FUNDO GERAL ========== */
     .stApp {
-        background-color: #fdfdf7;
+        background: linear-gradient(180deg, #fdfdf7 0%, #f5f0e8 100%);
         color: #2a2a2a;
     }
 
-    /* Título principal com dourado e serifa japonesa */
+    /* ========== TÍTULO PRINCIPAL ========== */
     h1 {
         color: #b8860b !important;
         font-family: 'Georgia', 'Noto Serif JP', serif;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
-        letter-spacing: 2px;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.15);
+        letter-spacing: 3px;
+        font-size: 2.5em !important;
+        text-align: center;
+        padding: 10px 0;
     }
 
-    /* Subtítulos */
+    h1::before {
+        content: "🐉 ";
+        font-size: 1.3em;
+    }
+
+    h1::after {
+        content: " 🐉";
+        font-size: 1.3em;
+    }
+
+    /* ========== SUBTÍTULOS ========== */
     h2, h3 {
         color: #8b6508 !important;
         font-family: 'Georgia', serif;
+        letter-spacing: 1px;
     }
 
-    /* Sidebar branca com borda dourada */
+    /* ========== LINHA DIVISÓRIA DOURADA ========== */
+    hr {
+        border: none;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, #d4af37, transparent);
+        margin: 20px 0;
+    }
+
+    /* ========== SIDEBAR ========== */
     [data-testid="stSidebar"] {
-        background-color: #ffffff;
-        border-right: 2px solid #d4af37;
+        background: linear-gradient(180deg, #ffffff 0%, #faf5e8 100%);
+        border-right: 3px solid #d4af37;
     }
 
-    /* Cartões e containers com borda dourada suave */
-    .stContainer, .stExpander {
-        background-color: #ffffff;
-        border: 1px solid #d4af37;
-        border-radius: 12px;
-        padding: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    [data-testid="stSidebar"] img {
+        border: 2px solid #d4af37;
+        box-shadow: 0 2px 8px rgba(212, 175, 55, 0.3);
     }
 
-    /* Botões */
-    .stButton>button {
-        background-color: #ffffff;
-        color: #8b6508;
-        border: 1px solid #d4af37;
-        border-radius: 8px;
-        font-weight: bold;
-    }
-    .stButton>button:hover {
-        background-color: #d4af37;
-        color: #ffffff;
-    }
-
-    /* Botões da sidebar */
+    /* ========== BOTÕES DA SIDEBAR ========== */
     [data-testid="stSidebar"] .stButton>button {
         background-color: #fdfdf7;
         color: #8b6508;
         border: 1px solid #d4af37;
-        border-radius: 8px;
-        padding: 8px;
+        border-radius: 10px;
+        padding: 10px;
         font-weight: bold;
         transition: all 0.3s;
-        margin-bottom: 4px;
+        margin-bottom: 6px;
+        width: 100%;
     }
 
     [data-testid="stSidebar"] .stButton>button:hover {
         background-color: #d4af37;
         color: #ffffff;
         border-color: #8b6508;
-        transform: translateY(-1px);
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(212, 175, 55, 0.4);
     }
 
-    /* Métricas */
+    /* ========== CARTÕES E CONTAINERS ========== */
+    .stContainer, .stExpander {
+        background-color: #ffffff;
+        border: 2px solid #d4af37;
+        border-radius: 15px;
+        padding: 15px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        margin-bottom: 10px;
+        transition: box-shadow 0.3s;
+    }
+
+    .stContainer:hover {
+        box-shadow: 0 6px 16px rgba(212, 175, 55, 0.2);
+    }
+
+    /* ========== EXPANDERS ========== */
+    .stExpander {
+        border: 1px solid #d4af37;
+    }
+
+    /* ========== BOTÕES GERAIS ========== */
+    .stButton>button {
+        background-color: #ffffff;
+        color: #8b6508;
+        border: 1px solid #d4af37;
+        border-radius: 10px;
+        font-weight: bold;
+        padding: 8px 12px;
+        transition: all 0.3s;
+    }
+
+    .stButton>button:hover {
+        background-color: #d4af37;
+        color: #ffffff;
+        box-shadow: 0 2px 8px rgba(212, 175, 55, 0.4);
+    }
+
+    /* ========== MÉTRICAS ========== */
     .stMetric {
         background-color: #ffffff;
-        border: 1px solid #d4af37;
-        border-radius: 8px;
-        padding: 8px;
+        border: 2px solid #d4af37;
+        border-radius: 12px;
+        padding: 12px;
+        text-align: center;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     }
 
-    /* Avatares redondos */
+    /* ========== AVATARES REDONDOS ========== */
     img {
         border-radius: 50%;
+        border: 2px solid #d4af37;
     }
 
-    /* Fundo com padrão sutil de nuvens (opcional) */
+    /* ========== LOGO DA DIVISÃO ========== */
+    .divisao-logo {
+        width: 150px;
+        height: 150px;
+        border-radius: 50%;
+        border: 3px solid #d4af37;
+        object-fit: cover;
+        box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
+    }
+
+    /* ========== FUNDO COM PADRÃO SUTIL ========== */
     .stApp::before {
         content: "";
         position: fixed;
         top: 0; left: 0; right: 0; bottom: 0;
         background-image: url('https://www.transparenttextures.com/patterns/japanese-architectural.png');
-        opacity: 0.05;
+        opacity: 0.04;
         pointer-events: none;
     }
 
-    /* Pequeno dragão decorativo no título */
-    h1::before {
-        content: "🐉 ";
-        font-size: 1.2em;
+    /* ========== CAPTIONS ========== */
+    .stCaption {
+        color: #6b5b3e;
+        font-size: 0.9em;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -642,9 +698,9 @@ elif aba == "Divisões":
                 col_logo, col_info, col_acoes = st.columns([1, 3, 1])
                 with col_logo:
                     if d["logo_url"]:
-                        st.image(d["logo_url"], width=80)
+                        st.markdown(f'<img src="{d["logo_url"]}" class="divisao-logo">', unsafe_allow_html=True)
                     else:
-                        st.markdown("🔰")
+                        st.markdown('<div style="width:150px;height:150px;border:3px solid #d4af37;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:60px;">🔰</div>', unsafe_allow_html=True)
                 with col_info:
                     st.subheader(d["nome_divisao"])
                     st.caption(f"ID do Cargo: {d['discord_role_id'] or 'N/A'}")
@@ -705,7 +761,6 @@ elif aba == "Divisões":
                 # Gerenciar divisão (apenas liderança)
                 if pode_gerenciar_divisoes:
                     with st.expander(f"⚙️ Gerenciar {d['nome_divisao']}", expanded=False):
-                        # Selecionar líder
                         nomes_membros = {m["nome_rp"] or m["discord_username"]: m["discord_id"] for m in membros}
                         
                         col_lider_sel, col_vice_sel = st.columns(2)
@@ -722,7 +777,6 @@ elif aba == "Divisões":
                                 key=f"vice_{d['id']}"
                             )
 
-                        # Selecionar membros para adicionar
                         novos_membros = st.multiselect(
                             "Adicionar membros",
                             list(nomes_membros.keys()),
@@ -733,7 +787,6 @@ elif aba == "Divisões":
                             async def atualizar_divisao():
                                 conn = await get_db()
                                 try:
-                                    # Atualizar líder
                                     if novo_lider != "Nenhum":
                                         await conn.execute(
                                             "UPDATE divisoes SET lider_id = $1 WHERE id = $2",
@@ -745,7 +798,6 @@ elif aba == "Divisões":
                                             d['id']
                                         )
                                     
-                                    # Atualizar vice-líder
                                     if novo_vice != "Nenhum":
                                         await conn.execute(
                                             "UPDATE divisoes SET vice_lider_id = $1 WHERE id = $2",
@@ -757,7 +809,6 @@ elif aba == "Divisões":
                                             d['id']
                                         )
                                     
-                                    # Adicionar membros
                                     for nome in novos_membros:
                                         await conn.execute(
                                             "UPDATE membros SET divisao_id = $1 WHERE discord_id = $2",
