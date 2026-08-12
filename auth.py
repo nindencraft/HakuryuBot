@@ -44,9 +44,12 @@ def get_user_info(access_token):
 
 def get_guild_member(access_token):
     headers = {"Authorization": f"Bearer {access_token}"}
-    r = requests.get(f"https://discord.com/api/users/@me/guilds/{GUILD_ID}/member", headers=headers)
-    if r.status_code == 200:
-        return r.json()
+    try:
+        r = requests.get(f"https://discord.com/api/users/@me/guilds/{GUILD_ID}/member", headers=headers)
+        if r.status_code == 200:
+            return r.json()
+    except:
+        pass
     return None
 
 def autenticar():
