@@ -66,6 +66,26 @@ st.markdown("""
         color: #ffffff;
     }
 
+    /* Botões da sidebar */
+    [data-testid="stSidebar"] .stButton>button {
+        background-color: #fdfdf7;
+        color: #8b6508;
+        border: 1px solid #d4af37;
+        border-radius: 8px;
+        padding: 8px;
+        font-weight: bold;
+        transition: all 0.3s;
+        margin-bottom: 4px;
+    }
+
+    [data-testid="stSidebar"] .stButton>button:hover {
+        background-color: #d4af37;
+        color: #ffffff;
+        border-color: #8b6508;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
     /* Métricas */
     .stMetric {
         background-color: #ffffff;
@@ -221,14 +241,31 @@ except Exception as e:
     treinos = []
     membros_ativos = []
 
-# ========== NAVEGAÇÃO NA SIDEBAR ==========
-st.sidebar.markdown("---")
-aba = st.sidebar.radio(
-    "📑 Navegação",
-    ["Visão Geral", "Membros", "Treinos", "Divisões", "Parcerias"]
-)
+# ========== NAVEGAÇÃO POR BOTÕES ==========
+st.sidebar.markdown("### 📑 Navegação")
 
-# Filtros de membros (apenas quando a aba Membros estiver ativa)
+aba = None
+col1, col2 = st.sidebar.columns(2)
+with col1:
+    if st.button("📊 Visão Geral", use_container_width=True, key="nav_geral"):
+        aba = "Visão Geral"
+    if st.button("👥 Membros", use_container_width=True, key="nav_membros"):
+        aba = "Membros"
+    if st.button("🗓️ Treinos", use_container_width=True, key="nav_treinos"):
+        aba = "Treinos"
+with col2:
+    if st.button("🔰 Divisões", use_container_width=True, key="nav_divisoes"):
+        aba = "Divisões"
+    if st.button("🌐 Parcerias", use_container_width=True, key="nav_parcerias"):
+        aba = "Parcerias"
+
+# Manter a aba selecionada
+if aba is None:
+    aba = st.session_state.get("aba_atual", "Visão Geral")
+else:
+    st.session_state.aba_atual = aba
+
+# Filtros de membros
 if aba == "Membros":
     st.sidebar.markdown("---")
     st.sidebar.header("Filtros de Membros")
