@@ -16,6 +16,87 @@ st.set_page_config(
     layout="wide"
 )
 
+st.markdown("""
+<style>
+    /* Fundo geral branco suave */
+    .stApp {
+        background-color: #fdfdf7;
+        color: #2a2a2a;
+    }
+
+    /* Título principal com dourado e serifa japonesa */
+    h1 {
+        color: #b8860b !important;
+        font-family: 'Georgia', 'Noto Serif JP', serif;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        letter-spacing: 2px;
+    }
+
+    /* Subtítulos */
+    h2, h3 {
+        color: #8b6508 !important;
+        font-family: 'Georgia', serif;
+    }
+
+    /* Sidebar branca com borda dourada */
+    [data-testid="stSidebar"] {
+        background-color: #ffffff;
+        border-right: 2px solid #d4af37;
+    }
+
+    /* Cartões e containers com borda dourada suave */
+    .stContainer, .stExpander {
+        background-color: #ffffff;
+        border: 1px solid #d4af37;
+        border-radius: 12px;
+        padding: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+
+    /* Botões */
+    .stButton>button {
+        background-color: #ffffff;
+        color: #8b6508;
+        border: 1px solid #d4af37;
+        border-radius: 8px;
+        font-weight: bold;
+    }
+    .stButton>button:hover {
+        background-color: #d4af37;
+        color: #ffffff;
+    }
+
+    /* Métricas */
+    .stMetric {
+        background-color: #ffffff;
+        border: 1px solid #d4af37;
+        border-radius: 8px;
+        padding: 8px;
+    }
+
+    /* Avatares redondos */
+    img {
+        border-radius: 50%;
+    }
+
+    /* Fundo com padrão sutil de nuvens (opcional) */
+    .stApp::before {
+        content: "";
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background-image: url('https://www.transparenttextures.com/patterns/japanese-architectural.png');
+        opacity: 0.05;
+        pointer-events: none;
+    }
+
+    /* Pequeno dragão decorativo no título */
+    h1::before {
+        content: "🐉 ";
+        font-size: 1.2em;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # ========== AUTENTICAÇÃO PERSISTENTE ==========
 if "user" not in st.session_state:
     autenticar()
