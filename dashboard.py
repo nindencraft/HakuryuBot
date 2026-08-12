@@ -55,7 +55,7 @@ def carregar_membros():
                 FROM membros
                 ORDER BY data_entrada DESC
             """)
-            return rows
+            return [dict(row) for row in rows]
         finally:
             await conn.close()
     return asyncio.run(_get())
@@ -71,7 +71,7 @@ def carregar_treinos():
                 FROM treinos t
                 ORDER BY t.data_treino DESC
             """)
-            return rows
+            return [dict(row) for row in rows]
         finally:
             await conn.close()
     return asyncio.run(_get())
@@ -81,7 +81,8 @@ def carregar_membros_ativos():
     async def _get():
         conn = await get_db()
         try:
-            return await conn.fetch("SELECT discord_id, discord_username, nome_rp FROM membros WHERE status = 'Ativo' ORDER BY nome_rp")
+            rows = await conn.fetch("SELECT discord_id, discord_username, nome_rp FROM membros WHERE status = 'Ativo' ORDER BY nome_rp")
+            return [dict(row) for row in rows]
         finally:
             await conn.close()
     return asyncio.run(_get())
@@ -239,12 +240,13 @@ with tabs[2]:
                     async def get_inscritos(treino_id):
                         conn = await get_db()
                         try:
-                            return await conn.fetch("""
+                            rows = await conn.fetch("""
                                 SELECT p.membro_id, m.discord_username, m.nome_rp, p.inscricao, p.presenca
                                 FROM presencas_treino p
                                 JOIN membros m ON p.membro_id = m.discord_id
                                 WHERE p.treino_id = $1
                             """, treino_id)
+                            return [dict(row) for row in rows]
                         finally:
                             await conn.close()
                     presencas = asyncio.run(get_inscritos(t['id_treino']))
