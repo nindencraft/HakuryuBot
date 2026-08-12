@@ -65,6 +65,19 @@ def autenticar():
             "avatar": f"https://cdn.discordapp.com/avatars/{user_info['id']}/{user_info['avatar']}.png?size=128" if user_info["avatar"] else "https://cdn.discordapp.com/embed/avatars/0.png",
             "cargos": cargos
         }
+        # Limpa a URL removendo o parâmetro 'code' para evitar loop
+        st.markdown(
+            """
+            <script>
+            if (window.location.search.includes('code=')) {
+                const url = new URL(window.location);
+                url.searchParams.delete('code');
+                window.history.replaceState({}, document.title, url.pathname + url.search);
+            }
+            </script>
+            """,
+            unsafe_allow_html=True
+        )
         st.query_params.clear()
 
 def esta_logado():
