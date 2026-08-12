@@ -130,7 +130,6 @@ def carregar_dados_completos():
     async def _get():
         conn = await get_db()
         try:
-            # Carrega todos os membros
             membros = await conn.fetch("""
                 SELECT discord_id, discord_username, nome_roblox, nome_rp, genero, altura_jogo,
                        estilo_luta_principal, cargo, divisao, status, data_entrada, avatar_hash
@@ -138,7 +137,6 @@ def carregar_dados_completos():
                 ORDER BY data_entrada DESC
             """)
 
-            # Contagem de warns por membro
             warns = await conn.fetch("""
                 SELECT membro_id, COUNT(*) as total_warns
                 FROM punicoes
@@ -147,7 +145,6 @@ def carregar_dados_completos():
             """)
             warns_dict = {w["membro_id"]: w["total_warns"] for w in warns}
 
-            # Estatísticas por membro
             stats = await conn.fetch("""
                 SELECT 
                     p.membro_id,
@@ -160,7 +157,6 @@ def carregar_dados_completos():
             """)
             stats_dict = {s["membro_id"]: {"internos": s["internos"], "amistosos": s["amistosos"]} for s in stats}
 
-            # Guerras por membro
             try:
                 guerras = await conn.fetch("""
                     SELECT membro_id, COUNT(*) as total_guerras
@@ -171,7 +167,6 @@ def carregar_dados_completos():
             except:
                 guerras_dict = {}
 
-            # Monta lista final com todos os dados
             resultado = []
             for m in membros:
                 m_dict = dict(m)
@@ -222,27 +217,37 @@ try:
     membros_ativos = carregar_membros_ativos()
 except Exception as e:
     st.error(f"⚠️ Sem conexão com o banco de dados: {e}")
-    st.info("Usando dados vazios para visualização do layout.")
     membros = []
     treinos = []
     membros_ativos = []
 
-# ========== SIDEBAR ==========
-st.sidebar.header("Filtros de Membros")
-cargos = ["Todos"] + sorted({m["cargo"] for m in membros})
-cargo_filter = st.sidebar.selectbox("Cargo", cargos)
-status_list = ["Todos"] + sorted({m["status"] for m in membros})
-status_filter = st.sidebar.selectbox("Status", status_list)
-divisoes = ["Todas"] + sorted({m["divisao"] for m in membros if m["divisao"]})
-divisao_filter = st.sidebar.selectbox("Divisão", divisoes)
+# ========== NAVEGAÇÃO NA SIDEBAR ==========
+st.sidebar.markdown("---")
+aba = st.sidebar.radio(
+    "📑 Navegação",
+    ["Visão Geral", "Membros", "Treinos", "Divisões", "Parcerias"]
+)
 
-membros_filtrados = membros
-if cargo_filter != "Todos":
-    membros_filtrados = [m for m in membros_filtrados if m["cargo"] == cargo_filter]
-if status_filter != "Todos":
-    membros_filtrados = [m for m in membros_filtrados if m["status"] == status_filter]
-if divisao_filter != "Todas":
-    membros_filtrados = [m for m in membros_filtrados if m["divisao"] == divisao_filter]
+# Filtros de membros (apenas quando a aba Membros estiver ativa)
+if aba == "Membros":
+    st.sidebar.markdown("---")
+    st.sidebar.header("Filtros de Membros")
+    cargos = ["Todos"] + sorted({m["cargo"] for m in membros})
+    cargo_filter = st.sidebar.selectbox("Cargo", cargos)
+    status_list = ["Todos"] + sorted({m["status"] for m in membros})
+    status_filter = st.sidebar.selectbox("Status", status_list)
+    divisoes = ["Todas"] + sorted({m["divisao"] for m in membros if m["divisao"]})
+    divisao_filter = st.sidebar.selectbox("Divisão", divisoes)
+
+    membros_filtrados = membros
+    if cargo_filter != "Todos":
+        membros_filtrados = [m for m in membros_filtrados if m["cargo"] == cargo_filter]
+    if status_filter != "Todos":
+        membros_filtrados = [m for m in membros_filtrados if m["status"] == status_filter]
+    if divisao_filter != "Todas":
+        membros_filtrados = [m for m in membros_filtrados if m["divisao"] == divisao_filter]
+else:
+    membros_filtrados = membros
 
 # Botão de atualização
 st.sidebar.markdown("---")
@@ -250,19 +255,18 @@ if st.sidebar.button("🔄 Atualizar dados agora"):
     st.cache_data.clear()
     st.rerun()
 
-# ========== TÍTULO E ABAS ==========
+# ========== TÍTULO ==========
 st.title("👑• 𝐇𝐚𝐤𝐮𝐫𝐲𝐮̄ (白竜) •👑")
 st.caption("Dashboard de gestão da gang")
-tabs = st.tabs(["Visão Geral", "Membros", "Treinos", "Divisões", "Parcerias"])
 
 # ========== ABA VISÃO GERAL ==========
-with tabs[0]:
+if aba == "Visão Geral":
     st.header("📊 Visão Geral")
     col1, col2, col3 = st.columns(3)
     membros_ativos_count = len([m for m in membros if m["status"] == "Ativo"])
     col1.metric("Membros Ativos", membros_ativos_count)
     col2.metric("Treinos Cadastrados", len(treinos))
-    col3.metric("Divisões", len(divisoes) - 1)
+    col3.metric("Divisões", len({m["divisao"] for m in membros if m["divisao"]}))
     st.divider()
     st.subheader("Próximos Treinos")
     futuros = [t for t in treinos if t["data_treino"] >= datetime.date.today()]
@@ -273,7 +277,7 @@ with tabs[0]:
         st.info("Nenhum treino futuro.")
 
 # ========== ABA MEMBROS ==========
-with tabs[1]:
+elif aba == "Membros":
     st.header("👥 Membros")
     st.subheader(f"Total exibido: {len(membros_filtrados)}")
 
@@ -301,7 +305,6 @@ with tabs[1]:
                     st.markdown(f"**{m['cargo']}**")
                     st.caption(f"Divisão: {m['divisao'] or 'Sem divisão'}")
 
-                    # Warns já carregados
                     warns = m["warns"]
                     if warns > 0:
                         st.markdown(f"⚠️ **Warns:** {warns}")
@@ -327,7 +330,6 @@ with tabs[1]:
                         st.markdown(f"**Entrada:** {m['data_entrada']}")
                         st.markdown(f"**Warns:** {m['warns']}")
 
-                    # Estatísticas já carregadas
                     stats = m["stats"]
                     st.divider()
                     st.markdown("### 📈 Estatísticas")
@@ -371,103 +373,8 @@ with tabs[1]:
 
                 st.divider()
 
-# Formulário de advertência
-if "advertir_membro" in st.session_state:
-    membro_alvo_id = st.session_state.advertir_membro
-    membro_alvo = next((m for m in membros if m["discord_id"] == membro_alvo_id), None)
-
-    if membro_alvo:
-        with st.expander(f"⚠️ Advertir {membro_alvo['nome_rp'] or membro_alvo['discord_username']}", expanded=True):
-            with st.form(f"form_advertir_{membro_alvo_id}", clear_on_submit=True):
-                motivo = st.text_area("Motivo da advertência")
-                staff_id = st.session_state.user["id"]
-                submitted_advertir = st.form_submit_button("Enviar Advertência")
-                if submitted_advertir:
-                    async def inserir_advertencia():
-                        conn = await get_db()
-                        try:
-                            await conn.execute(
-                                """
-                                INSERT INTO punicoes (membro_id, tipo, motivo, staff_id)
-                                VALUES ($1, 'Warn', $2, $3)
-                                """,
-                                membro_alvo_id, motivo, staff_id
-                            )
-                        finally:
-                            await conn.close()
-                    asyncio.run(inserir_advertencia())
-                    st.success("Advertência registrada!")
-                    del st.session_state.advertir_membro
-                    st.cache_data.clear()
-                    st.rerun()
-
-# Formulário de troca de cargo
-if "trocar_cargo_membro" in st.session_state:
-    membro_alvo_id = st.session_state.trocar_cargo_membro
-    membro_alvo = next((m for m in membros if m["discord_id"] == membro_alvo_id), None)
-
-    if membro_alvo:
-        with st.expander(f"⚜️ Trocar cargo de {membro_alvo['nome_rp'] or membro_alvo['discord_username']}", expanded=True):
-            with st.form(f"form_trocar_cargo_{membro_alvo_id}", clear_on_submit=True):
-                novo_cargo = st.selectbox(
-                    "Novo cargo",
-                    ["Recruta", "Membro", "Líder de Divisão", "Staff", "Recrutador", "Vice-Lider", "Lider"],
-                    index=["Recruta", "Membro", "Líder de Divisão", "Staff", "Recrutador", "Vice-Lider", "Lider"].index(membro_alvo["cargo"]) if membro_alvo["cargo"] in ["Recruta", "Membro", "Líder de Divisão", "Staff", "Recrutador", "Vice-Lider", "Lider"] else 0
-                )
-                submitted_cargo = st.form_submit_button("Salvar cargo")
-                if submitted_cargo:
-                    async def atualizar_cargo():
-                        conn = await get_db()
-                        try:
-                            await conn.execute(
-                                "UPDATE membros SET cargo = $1 WHERE discord_id = $2",
-                                novo_cargo, membro_alvo_id
-                            )
-                        finally:
-                            await conn.close()
-                    asyncio.run(atualizar_cargo())
-                    st.success(f"Cargo atualizado para {novo_cargo}!")
-                    del st.session_state.trocar_cargo_membro
-                    st.cache_data.clear()
-                    st.rerun()
-
-# Modal de histórico de warns
-if "historico_membro" in st.session_state:
-    membro_hist_id = st.session_state.historico_membro
-    membro_hist = next((m for m in membros if m["discord_id"] == membro_hist_id), None)
-
-    if membro_hist:
-        with st.expander(f"📜 Histórico de Warns - {membro_hist['nome_rp'] or membro_hist['discord_username']}", expanded=True):
-            async def get_historico_warns(discord_id):
-                conn = await get_db()
-                try:
-                    rows = await conn.fetch("""
-                        SELECT p.motivo, p.data_aplicacao, p.staff_id
-                        FROM punicoes p
-                        WHERE p.membro_id = $1 AND p.tipo = 'Warn'
-                        ORDER BY p.data_aplicacao DESC
-                    """, discord_id)
-                    return [dict(row) for row in rows]
-                finally:
-                    await conn.close()
-
-            historico = asyncio.run(get_historico_warns(membro_hist_id))
-
-            if not historico:
-                st.info("Nenhum warn registrado.")
-            else:
-                for h in historico:
-                    st.markdown(f"**📅 {h['data_aplicacao']}**")
-                    st.markdown(f"**Motivo:** {h['motivo']}")
-                    st.markdown(f"**Staff:** {h['staff_id']}")
-                    st.divider()
-
-            if st.button("Fechar", key=f"fechar_hist_{membro_hist_id}"):
-                del st.session_state.historico_membro
-                st.rerun()
-
 # ========== ABA TREINOS ==========
-with tabs[2]:
+elif aba == "Treinos":
     st.header("🗓️ Mural de Treinos")
 
     pode_gerenciar_presenca = tem_cargo("Lider") or tem_cargo("Vice-Lider") or tem_cargo("Líder de Divisão") or eh_dono()
@@ -632,12 +539,12 @@ with tabs[2]:
                                     st.rerun()
                 st.divider()
 
-# ========== ABA DIVISÕES (placeholder) ==========
-with tabs[3]:
+# ========== ABA DIVISÕES ==========
+elif aba == "Divisões":
     st.header("🔰 Divisões")
     st.info("Em breve: gerenciamento de divisões, líderes e membros.")
 
-# ========== ABA PARCERIAS (placeholder) ==========
-with tabs[4]:
+# ========== ABA PARCERIAS ==========
+elif aba == "Parcerias":
     st.header("🌐 Parcerias")
     st.info("Em breve: lista de parcerias, status e links.")
