@@ -10,8 +10,15 @@ load_dotenv()
 from database import get_db
 from auth import autenticar, esta_logado, tem_cargo, eh_dono, get_login_url
 
-# Autenticação
-autenticar()
+st.set_page_config(
+    page_title="👑 Hakuryū Dashboard",
+    page_icon="🐉",
+    layout="wide"
+)
+
+# ========== AUTENTICAÇÃO PERSISTENTE ==========
+if "user" not in st.session_state:
+    autenticar()
 
 if not esta_logado():
     st.title("👑 Hakuryū Dashboard")
@@ -25,69 +32,73 @@ nome_exibicao = st.session_state.user.get("nome_rp") or st.session_state.user["n
 st.sidebar.markdown(f"**{nome_exibicao}**")
 st.sidebar.caption(f"Discord: {st.session_state.user['nome']}")
 
-# Controle de acesso: só membros da gang podem ver o restante
+# Controle de acesso
 cargos_permitidos = ["Lider", "Vice-Lider", "Líder de Divisão", "Staff", "Recrutador", "Membro", "Em Analise"]
 if not eh_dono() and not any(tem_cargo(c) for c in cargos_permitidos):
     st.error("Você não possui um cargo autorizado para acessar este dashboard.")
     st.stop()
-
-st.set_page_config(
-    page_title="👑 Hakuryū Dashboard",
-    page_icon="🐉",
-    layout="wide"
-)
 
 def discord_avatar_url(discord_id, avatar_hash, size=128):
     if avatar_hash:
         return f"https://cdn.discordapp.com/avatars/{discord_id}/{avatar_hash}.png?size={size}"
     return "https://cdn.discordapp.com/embed/avatars/0.png"
 
-async def get_membros():
-    conn = await get_db()
-    try:
-        rows = await conn.fetch("""
-            SELECT discord_id, discord_username, nome_roblox, nome_rp, genero, altura_jogo,
-                   estilo_luta_principal, cargo, divisao, status, avatar_hash
-            FROM membros
-            ORDER BY data_entrada DESC
-        """)
-        return rows
-    finally:
-        await conn.close()
+# ========== FUNÇÕES COM CACHE ==========
+@st.cache_data(ttl=60)
+def carregar_membros():
+    async def _get():
+        conn = await get_db()
+        try:
+            rows = await conn.fetch("""
+                SELECT discord_id, discord_username, nome_roblox, nome_rp, genero, altura_jogo,
+                       estilo_luta_principal, cargo, divisao, status, avatar_hash
+                FROM membros
+                ORDER BY data_entrada DESC
+            """)
+            return rows
+        finally:
+            await conn.close()
+    return asyncio.run(_get())
 
-async def get_treinos():
-    conn = await get_db()
-    try:
-        rows = await conn.fetch("""
-            SELECT t.*, 
-                   (SELECT COUNT(*) FROM presencas_treino p WHERE p.treino_id = t.id_treino AND p.inscricao = 'Confirmado') as inscritos
-            FROM treinos t
-            ORDER BY t.data_treino DESC
-        """)
-        return rows
-    finally:
-        await conn.close()
+@st.cache_data(ttl=60)
+def carregar_treinos():
+    async def _get():
+        conn = await get_db()
+        try:
+            rows = await conn.fetch("""
+                SELECT t.*, 
+                       (SELECT COUNT(*) FROM presencas_treino p WHERE p.treino_id = t.id_treino AND p.inscricao = 'Confirmado') as inscritos
+                FROM treinos t
+                ORDER BY t.data_treino DESC
+            """)
+            return rows
+        finally:
+            await conn.close()
+    return asyncio.run(_get())
 
-async def get_membros_ativos():
-    conn = await get_db()
-    try:
-        return await conn.fetch("SELECT discord_id, discord_username, nome_rp FROM membros WHERE status = 'Ativo' ORDER BY nome_rp")
-    finally:
-        await conn.close()
+@st.cache_data(ttl=60)
+def carregar_membros_ativos():
+    async def _get():
+        conn = await get_db()
+        try:
+            return await conn.fetch("SELECT discord_id, discord_username, nome_rp FROM membros WHERE status = 'Ativo' ORDER BY nome_rp")
+        finally:
+            await conn.close()
+    return asyncio.run(_get())
 
-# ========== CARREGAR DADOS COM PROTEÇÃO ==========
+# ========== CARREGAR DADOS ==========
 try:
-    membros = asyncio.run(get_membros())
-    treinos = asyncio.run(get_treinos())
-    membros_ativos = asyncio.run(get_membros_ativos())
+    membros = carregar_membros()
+    treinos = carregar_treinos()
+    membros_ativos = carregar_membros_ativos()
 except Exception as e:
     st.error(f"⚠️ Sem conexão com o banco de dados: {e}")
-    st.info("Usando dados vazios para visualização do layout. Acesse o dashboard online para dados reais.")
+    st.info("Usando dados vazios para visualização do layout.")
     membros = []
     treinos = []
     membros_ativos = []
 
-# ========== SIDEBAR (filtros globais de membros) ==========
+# ========== SIDEBAR ==========
 st.sidebar.header("Filtros de Membros")
 cargos = ["Todos"] + sorted({m["cargo"] for m in membros})
 cargo_filter = st.sidebar.selectbox("Cargo", cargos)
@@ -115,7 +126,7 @@ with tabs[0]:
     col1, col2, col3 = st.columns(3)
     col1.metric("Membros", len(membros))
     col2.metric("Treinos Cadastrados", len(treinos))
-    col3.metric("Divisões", len(divisoes) - 1)  # desconta "Todas"
+    col3.metric("Divisões", len(divisoes) - 1)
     st.divider()
     st.subheader("Próximos Treinos")
     futuros = [t for t in treinos if t["data_treino"] >= datetime.date.today()]
@@ -138,11 +149,9 @@ with tabs[1]:
                 avatar_url = discord_avatar_url(m["discord_id"], m["avatar_hash"])
                 st.image(avatar_url, width=100)
 
-                # Nome RP como principal, Discord como secundário
                 nome_principal = m["nome_rp"] or m["discord_username"]
                 st.markdown(f"**{nome_principal}**")
                 st.caption(f"Discord: {m['discord_username']}")
-
                 st.caption(f"🎮 Roblox: {m['nome_roblox']}")
                 if m["nome_rp"]:
                     st.caption(f"📜 RP: {m['nome_rp']}")
@@ -200,7 +209,6 @@ with tabs[2]:
                 st.caption(f"Inscritos: {t['inscritos']}")
 
                 with st.expander("📝 Inscrição de presença", expanded=False):
-                    # Dicionário com nome RP como chave principal
                     nomes_membros = {}
                     for m in membros_ativos:
                         nome_principal = m["nome_rp"] or m["discord_username"]
@@ -245,11 +253,9 @@ with tabs[2]:
                     else:
                         for p in presencas:
                             col1, col2, col3, col4 = st.columns([3,2,2,2])
-                            # Nome RP em destaque, Discord embaixo
                             nome_rp = p["nome_rp"] or p["discord_username"]
                             col1.markdown(f"**{nome_rp}**")
                             col1.caption(f"Discord: {p['discord_username']}")
-
                             col2.write(f"Inscrição: {p['inscricao']}")
                             nova_presenca = col3.selectbox(
                                 "Presença",
