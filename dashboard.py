@@ -261,13 +261,14 @@ with tabs[1]:
     st.header("👥 Membros")
     st.subheader(f"Total exibido: {len(membros_filtrados)}")
 
-    pode_gerenciar_membros = tem_cargo("Lider") or tem_cargo("Vice-Lider")
+    pode_gerenciar_membros = tem_cargo("Lider") or tem_cargo("Vice-Lider") or eh_dono()
 
     if not membros_filtrados:
         st.info("Nenhum membro encontrado com os filtros.")
     else:
         for m in membros_filtrados:
             with st.container():
+                # Linha principal com avatar, nome RP e cargo
                 col_avatar, col_info, col_cargo = st.columns([1, 4, 2])
 
                 with col_avatar:
@@ -285,6 +286,25 @@ with tabs[1]:
                     st.markdown(f"**{m['cargo']}**")
                     st.caption(f"Divisão: {m['divisao'] or 'Sem divisão'}")
 
+                    # Contagem de warns
+                    async def contar_warns(discord_id):
+                        conn = await get_db()
+                        try:
+                            count = await conn.fetchval(
+                                "SELECT COUNT(*) FROM punicoes WHERE membro_id = $1 AND tipo = 'Warn'",
+                                discord_id
+                            )
+                            return count
+                        finally:
+                            await conn.close()
+
+                    warns = asyncio.run(contar_warns(m["discord_id"]))
+                    if warns > 0:
+                        st.markdown(f"⚠️ **Warns:** {warns}")
+                    else:
+                        st.caption("⚠️ Warns: 0")
+
+                # Expander com detalhes e ações
                 with st.expander(f"📋 Detalhes de {nome_principal}", expanded=False):
                     col1, col2 = st.columns(2)
                     with col1:
@@ -302,6 +322,7 @@ with tabs[1]:
                         st.markdown(f"**Divisão:** {m['divisao'] or 'Sem divisão'}")
                         st.markdown(f"**Status:** {m['status']}")
                         st.markdown(f"**Entrada:** {m['data_entrada']}")
+                        st.markdown(f"**Warns:** {warns}")
 
                     # Estatísticas de participação
                     stats = asyncio.run(get_estatisticas_membro(m["discord_id"]))
@@ -312,34 +333,29 @@ with tabs[1]:
                     col_st2.metric("Treinos Amistosos", stats["amistosos"])
                     col_st3.metric("Guerras", stats["guerras"])
 
+                    # Ações de gerenciamento (apenas liderança/dono)
                     if pode_gerenciar_membros:
                         st.divider()
-                        st.markdown("### 🔧 Gerenciar")
-                        col_cargo_sel, col_salvar, col_remover = st.columns([3, 2, 2])
-                        with col_cargo_sel:
-                            novo_cargo = st.selectbox(
-                                "Alterar cargo",
-                                ["Recruta", "Membro", "Líder de Divisão", "Staff", "Recrutador", "Vice-Lider", "Lider"],
-                                index=["Recruta", "Membro", "Líder de Divisão", "Staff", "Recrutador", "Vice-Lider", "Lider"].index(m["cargo"]) if m["cargo"] in ["Recruta", "Membro", "Líder de Divisão", "Staff", "Recrutador", "Vice-Lider", "Lider"] else 0,
-                                key=f"cargo_exp_{m['discord_id']}"
-                            )
-                        with col_salvar:
-                            if st.button("💾 Salvar cargo", key=f"salvar_cargo_exp_{m['discord_id']}"):
-                                async def atualizar_cargo():
-                                    conn = await get_db()
-                                    try:
-                                        await conn.execute(
-                                            "UPDATE membros SET cargo = $1 WHERE discord_id = $2",
-                                            novo_cargo, m["discord_id"]
-                                        )
-                                    finally:
-                                        await conn.close()
-                                asyncio.run(atualizar_cargo())
-                                st.success(f"Cargo de {nome_principal} atualizado para {novo_cargo}!")
-                                st.cache_data.clear()
+                        st.markdown("### 🔧 Ações")
+
+                        # Botões de ação rápida
+                        col_acao1, col_acao2, col_acao3 = st.columns(3)
+
+                        # Botão de advertência
+                        with col_acao1:
+                            if st.button("⚠️ Advertir", key=f"advertir_{m['discord_id']}"):
+                                st.session_state.advertir_membro = m["discord_id"]
                                 st.rerun()
-                        with col_remover:
-                            if st.button("🗑️ Remover", key=f"remover_exp_{m['discord_id']}"):
+
+                        # Botão de trocar cargo
+                        with col_acao2:
+                            if st.button("⚜️ Trocar cargo", key=f"trocar_cargo_btn_{m['discord_id']}"):
+                                st.session_state.trocar_cargo_membro = m["discord_id"]
+                                st.rerun()
+
+                        # Botão de remover
+                        with col_acao3:
+                            if st.button("🗑️ Remover", key=f"remover_btn_{m['discord_id']}"):
                                 async def remover_membro():
                                     conn = await get_db()
                                     try:
@@ -352,6 +368,66 @@ with tabs[1]:
                                 st.rerun()
 
                 st.divider()
+
+# Formulário de advertência (modal simplificado)
+if "advertir_membro" in st.session_state:
+    membro_alvo_id = st.session_state.advertir_membro
+    membro_alvo = next((m for m in membros if m["discord_id"] == membro_alvo_id), None)
+
+    if membro_alvo:
+        with st.expander(f"⚠️ Advertir {membro_alvo['nome_rp'] or membro_alvo['discord_username']}", expanded=True):
+            with st.form(f"form_advertir_{membro_alvo_id}", clear_on_submit=True):
+                motivo = st.text_area("Motivo da advertência")
+                staff_id = st.session_state.user["id"]
+                submitted_advertir = st.form_submit_button("Enviar Advertência")
+                if submitted_advertir:
+                    async def inserir_advertencia():
+                        conn = await get_db()
+                        try:
+                            await conn.execute(
+                                """
+                                INSERT INTO punicoes (membro_id, tipo, motivo, staff_id)
+                                VALUES ($1, 'Warn', $2, $3)
+                                """,
+                                membro_alvo_id, motivo, staff_id
+                            )
+                        finally:
+                            await conn.close()
+                    asyncio.run(inserir_advertencia())
+                    st.success("Advertência registrada!")
+                    del st.session_state.advertir_membro
+                    st.cache_data.clear()
+                    st.rerun()
+
+# Formulário de troca de cargo (modal simplificado)
+if "trocar_cargo_membro" in st.session_state:
+    membro_alvo_id = st.session_state.trocar_cargo_membro
+    membro_alvo = next((m for m in membros if m["discord_id"] == membro_alvo_id), None)
+
+    if membro_alvo:
+        with st.expander(f"⚜️ Trocar cargo de {membro_alvo['nome_rp'] or membro_alvo['discord_username']}", expanded=True):
+            with st.form(f"form_trocar_cargo_{membro_alvo_id}", clear_on_submit=True):
+                novo_cargo = st.selectbox(
+                    "Novo cargo",
+                    ["Recruta", "Membro", "Líder de Divisão", "Staff", "Recrutador", "Vice-Lider", "Lider"],
+                    index=["Recruta", "Membro", "Líder de Divisão", "Staff", "Recrutador", "Vice-Lider", "Lider"].index(membro_alvo["cargo"]) if membro_alvo["cargo"] in ["Recruta", "Membro", "Líder de Divisão", "Staff", "Recrutador", "Vice-Lider", "Lider"] else 0
+                )
+                submitted_cargo = st.form_submit_button("Salvar cargo")
+                if submitted_cargo:
+                    async def atualizar_cargo():
+                        conn = await get_db()
+                        try:
+                            await conn.execute(
+                                "UPDATE membros SET cargo = $1 WHERE discord_id = $2",
+                                novo_cargo, membro_alvo_id
+                            )
+                        finally:
+                            await conn.close()
+                    asyncio.run(atualizar_cargo())
+                    st.success(f"Cargo atualizado para {novo_cargo}!")
+                    del st.session_state.trocar_cargo_membro
+                    st.cache_data.clear()
+                    st.rerun()
 
 # ========== ABA TREINOS ==========
 with tabs[2]:
