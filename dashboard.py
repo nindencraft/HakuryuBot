@@ -339,7 +339,7 @@ with tabs[1]:
                         st.markdown("### 🔧 Ações")
 
                         # Botões de ação rápida
-                        col_acao1, col_acao2, col_acao3 = st.columns(3)
+                        col_acao1, col_acao2, col_acao3, col_acao4 = st.columns(4)
 
                         # Botão de advertência
                         with col_acao1:
@@ -353,8 +353,14 @@ with tabs[1]:
                                 st.session_state.trocar_cargo_membro = m["discord_id"]
                                 st.rerun()
 
-                        # Botão de remover
+                        # Botão de histórico de warns
                         with col_acao3:
+                            if st.button("📜 Histórico", key=f"hist_warns_{m['discord_id']}"):
+                                st.session_state.historico_membro = m["discord_id"]
+                                st.rerun()
+
+                        # Botão de remover
+                        with col_acao4:
                             if st.button("🗑️ Remover", key=f"remover_btn_{m['discord_id']}"):
                                 async def remover_membro():
                                     conn = await get_db()
@@ -428,6 +434,41 @@ if "trocar_cargo_membro" in st.session_state:
                     del st.session_state.trocar_cargo_membro
                     st.cache_data.clear()
                     st.rerun()
+
+# Modal de histórico de warns
+if "historico_membro" in st.session_state:
+    membro_hist_id = st.session_state.historico_membro
+    membro_hist = next((m for m in membros if m["discord_id"] == membro_hist_id), None)
+
+    if membro_hist:
+        with st.expander(f"📜 Histórico de Warns - {membro_hist['nome_rp'] or membro_hist['discord_username']}", expanded=True):
+            async def get_historico_warns(discord_id):
+                conn = await get_db()
+                try:
+                    rows = await conn.fetch("""
+                        SELECT p.motivo, p.data_aplicacao, p.staff_id
+                        FROM punicoes p
+                        WHERE p.membro_id = $1 AND p.tipo = 'Warn'
+                        ORDER BY p.data_aplicacao DESC
+                    """, discord_id)
+                    return [dict(row) for row in rows]
+                finally:
+                    await conn.close()
+
+            historico = asyncio.run(get_historico_warns(membro_hist_id))
+
+            if not historico:
+                st.info("Nenhum warn registrado.")
+            else:
+                for h in historico:
+                    st.markdown(f"**📅 {h['data_aplicacao']}**")
+                    st.markdown(f"**Motivo:** {h['motivo']}")
+                    st.markdown(f"**Staff:** {h['staff_id']}")
+                    st.divider()
+
+            if st.button("Fechar", key=f"fechar_hist_{membro_hist_id}"):
+                del st.session_state.historico_membro
+                st.rerun()
 
 # ========== ABA TREINOS ==========
 with tabs[2]:
@@ -540,7 +581,7 @@ with tabs[2]:
                                 conn = await get_db()
                                 try:
                                     await conn.execute(
-                                        "UPDATE presencas_treino SET inscricao = 'Recusado' WHERE treino_id = $1 AND membro_id = $2",
+                                        "DELETE FROM presencas_treino WHERE treino_id = $1 AND membro_id = $2",
                                         t['id_treino'], membro_id
                                     )
                                 finally:
