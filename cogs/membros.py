@@ -3,7 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 from database import fetch_one, execute
 import datetime
-from typing import Literal  # adicione no topo do arquivo
+from typing import Literal
 
 class Membros(commands.Cog):
     def __init__(self, bot):
@@ -50,23 +50,26 @@ class Membros(commands.Cog):
         estilo_luta: str = None,
         divisao: str = None
     ):
+        # Resposta imediata para evitar timeout
+        await interaction.response.defer(ephemeral=True)
+
         # Verifica permissão pelos cargos do Discord
         if not await self.tem_alguma_funcao(interaction.user, ["Lider", "Vice-Lider", "Líder de Divisão"]):
-            return await interaction.response.send_message("❌ Sem permissão.", ephemeral=True)
+            return await interaction.followup.send("❌ Sem permissão.", ephemeral=True)
 
         discord_id = str(membro.id)
-        discord_username = str(membro)  # Ex: "Nome#1234" ou "nome"
+        discord_username = str(membro)
 
         if altura <= 0 or altura > 3.0:
-            return await interaction.response.send_message(
+            return await interaction.followup.send(
                 "❌ Altura inválida. Informe um valor entre 0.50 e 3.00 (ex: 1.75). Use ponto, não vírgula.",
                 ephemeral=True
-    )
+            )
 
         # Verifica se já está registrado
         existente = await fetch_one("SELECT 1 FROM membros WHERE discord_id = $1", discord_id)
         if existente:
-            return await interaction.response.send_message(
+            return await interaction.followup.send(
                 "⚠️ Este membro já está registrado no banco de dados.",
                 ephemeral=True
             )
@@ -74,19 +77,20 @@ class Membros(commands.Cog):
         # Insere no banco
         await execute(
             """
-            INSERT INTO membros (discord_id, discord_username, nome_roblox, nome_rp, genero, altura_jogo, estilo_luta_principal, cargo, status, data_entrada)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, 'Recruta', 'Ativo', $8)
+            INSERT INTO membros (discord_id, discord_username, nome_roblox, nome_rp, genero, altura_jogo, estilo_luta_principal, divisao, cargo, status, data_entrada)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'Recruta', 'Ativo', $9)
             """,
-            discord_id, discord_username, nome_roblox, nome_rp, genero, altura, estilo_luta, datetime.date.today()
+            discord_id, discord_username, nome_roblox, nome_rp, genero, altura, estilo_luta, divisao, datetime.date.today()
         )
 
+        # Salva a hash do avatar automaticamente
         avatar_hash = membro.avatar.key if membro.avatar else None
         if avatar_hash:
             await execute(
-            "UPDATE membros SET avatar_hash = $1 WHERE discord_id = $2",
-            avatar_hash, discord_id
-        )
-        
+                "UPDATE membros SET avatar_hash = $1 WHERE discord_id = $2",
+                avatar_hash, discord_id
+            )
+
         # Embed de confirmação
         embed = discord.Embed(
             title="✅ Membro Registrado",
@@ -98,45 +102,51 @@ class Membros(commands.Cog):
         embed.add_field(name="Altura", value=f"{altura}m", inline=True)
         if estilo_luta:
             embed.add_field(name="Estilo de Luta", value=estilo_luta, inline=True)
-        await interaction.response.send_message(embed=embed)
+        if divisao:
+            embed.add_field(name="Divisão", value=divisao, inline=True)
+
+        await interaction.followup.send(embed=embed)
 
     # =============================================
-    # COMANDO: /excluir-registro
+    # COMANDO: /remover-registro
     # =============================================
     @app_commands.command(name="remover-registro", description="Remove um membro do banco de dados da gang")
     @app_commands.describe(membro="Membro a ser removido")
     async def remover_registro(self, interaction: discord.Interaction, membro: discord.Member):
+        # Resposta imediata para evitar timeout
+        await interaction.response.defer(ephemeral=True)
+
         if not await self.tem_alguma_funcao(interaction.user, ["Lider", "Vice-Lider", "Líder de Divisão"]):
-         return await interaction.response.send_message("❌ Sem permissão.", ephemeral=True)
+            return await interaction.followup.send("❌ Sem permissão.", ephemeral=True)
 
         discord_id = str(membro.id)
-        # Verifica se existe
         existe = await fetch_one("SELECT 1 FROM membros WHERE discord_id = $1", discord_id)
         if not existe:
-            return await interaction.response.send_message("⚠️ Este membro não está registrado.", ephemeral=True)
+            return await interaction.followup.send("⚠️ Este membro não está registrado.", ephemeral=True)
 
         await execute("DELETE FROM membros WHERE discord_id = $1", discord_id)
-        await interaction.response.send_message(f"✅ Registro de {membro.mention} removido do banco de dados.", ephemeral=True)
-        
+        await interaction.followup.send(f"✅ Registro de {membro.mention} removido do banco de dados.", ephemeral=True)
+
     # =============================================
     # COMANDO: /ficha
     # =============================================
     @app_commands.command(name="ficha", description="Exibe a ficha completa de um membro")
     @app_commands.describe(membro="Usuário do Discord")
     async def ficha(self, interaction: discord.Interaction, membro: discord.Member):
+        await interaction.response.defer(ephemeral=True)
+
         discord_id = str(membro.id)
         dados = await fetch_one(
             """
             SELECT discord_username, nome_roblox, nome_rp, genero, altura_jogo, estilo_luta_principal,
-           cargo, divisao, status, data_entrada, observacoes,
-           pontos_fortes_gerais, pontos_fracos_gerais,
-           avatar_hash
+                   cargo, divisao, status, data_entrada, observacoes,
+                   pontos_fortes_gerais, pontos_fracos_gerais, avatar_hash
             FROM membros WHERE discord_id = $1
             """,
             discord_id
         )
         if not dados:
-            return await interaction.response.send_message(
+            return await interaction.followup.send(
                 "❌ Membro não encontrado no banco. Use `/registrar` primeiro.",
                 ephemeral=True
             )
@@ -145,7 +155,6 @@ class Membros(commands.Cog):
             title=f"📋 Ficha de {membro.display_name}",
             color=discord.Color.blue()
         )
-        # Thumbnail a partir da hash
         if dados["avatar_hash"]:
             avatar_url = f"https://cdn.discordapp.com/avatars/{discord_id}/{dados['avatar_hash']}.png?size=128"
             embed.set_thumbnail(url=avatar_url)
@@ -168,7 +177,7 @@ class Membros(commands.Cog):
         if dados["observacoes"]:
             embed.add_field(name="📝 Observações", value=dados["observacoes"], inline=False)
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     # =============================================
     # COMANDO: /atualizar-avatar
@@ -176,13 +185,13 @@ class Membros(commands.Cog):
     @app_commands.command(name="atualizar-avatar", description="Atualiza o avatar de um membro no banco de dados")
     @app_commands.describe(membro="Usuário do Discord (deixe vazio para você mesmo)")
     async def atualizar_avatar(self, interaction: discord.Interaction, membro: discord.Member = None):
-        # Se não especificar, atualiza o próprio usuário
+        await interaction.response.defer(ephemeral=True)
+
         if membro is None:
             membro = interaction.user
 
-        # Apenas liderança ou o próprio membro podem atualizar
         if not await self.tem_alguma_funcao(interaction.user, ["Lider", "Vice-Lider", "Líder de Divisão"]) and interaction.user.id != membro.id:
-            return await interaction.response.send_message(
+            return await interaction.followup.send(
                 "❌ Você só pode atualizar seu próprio avatar. Peça a um líder para atualizar o de outros.",
                 ephemeral=True
             )
@@ -193,9 +202,9 @@ class Membros(commands.Cog):
                 "UPDATE membros SET avatar_hash = $1 WHERE discord_id = $2",
                 avatar_hash, str(membro.id)
             )
-            await interaction.response.send_message(f"✅ Hash do avatar de {membro.mention} salva no banco!", ephemeral=True)
+            await interaction.followup.send(f"✅ Hash do avatar de {membro.mention} salva no banco!", ephemeral=True)
         else:
-            await interaction.response.send_message("❌ Esse usuário não possui avatar no Discord.", ephemeral=True)
+            await interaction.followup.send("❌ Esse usuário não possui avatar no Discord.", ephemeral=True)
 
 
 async def setup(bot):
