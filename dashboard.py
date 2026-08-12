@@ -197,6 +197,12 @@ if status_filter != "Todos":
 if divisao_filter != "Todas":
     membros_filtrados = [m for m in membros_filtrados if m["divisao"] == divisao_filter]
 
+# Botão de atualização
+st.sidebar.markdown("---")
+if st.sidebar.button("🔄 Atualizar dados agora"):
+    st.cache_data.clear()
+    st.rerun()
+
 # ========== TÍTULO E ABAS ==========
 st.title("👑• 𝐇𝐚𝐤𝐮𝐫𝐲𝐮̄ (白竜) •👑")
 st.caption("Dashboard de gestão da gang")
