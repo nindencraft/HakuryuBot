@@ -124,55 +124,71 @@ def discord_avatar_url(discord_id, avatar_hash, size=128):
         return f"https://cdn.discordapp.com/avatars/{discord_id}/{avatar_hash}.png?size={size}"
     return "https://cdn.discordapp.com/embed/avatars/0.png"
 
-# ========== FUNÇÃO PARA ESTATÍSTICAS ==========
-async def get_estatisticas_membro(discord_id):
-    conn = await get_db()
-    try:
-        internos = await conn.fetchval("""
-            SELECT COUNT(*)
-            FROM presencas_treino p
-            JOIN treinos t ON p.treino_id = t.id_treino
-            WHERE p.membro_id = $1 AND p.presenca = 'Presente' AND t.tipo = 'Interno'
-        """, discord_id)
-
-        amistosos = await conn.fetchval("""
-            SELECT COUNT(*)
-            FROM presencas_treino p
-            JOIN treinos t ON p.treino_id = t.id_treino
-            WHERE p.membro_id = $1 AND p.presenca = 'Presente' AND t.tipo = 'Amistoso'
-        """, discord_id)
-
-        try:
-            guerras = await conn.fetchval("""
-                SELECT COUNT(*)
-                FROM participacoes_guerra
-                WHERE membro_id = $1
-            """, discord_id)
-        except:
-            guerras = 0
-
-        return {"internos": internos, "amistosos": amistosos, "guerras": guerras}
-    finally:
-        await conn.close()
-
-# ========== FUNÇÕES COM CACHE ==========
-@st.cache_data(ttl=60)
-def carregar_membros():
+# ========== FUNÇÃO OTIMIZADA: CARREGA TUDO EM LOTE ==========
+@st.cache_data(ttl=300)
+def carregar_dados_completos():
     async def _get():
         conn = await get_db()
         try:
-            rows = await conn.fetch("""
+            # Carrega todos os membros
+            membros = await conn.fetch("""
                 SELECT discord_id, discord_username, nome_roblox, nome_rp, genero, altura_jogo,
                        estilo_luta_principal, cargo, divisao, status, data_entrada, avatar_hash
                 FROM membros
                 ORDER BY data_entrada DESC
             """)
-            return [dict(row) for row in rows]
+
+            # Contagem de warns por membro
+            warns = await conn.fetch("""
+                SELECT membro_id, COUNT(*) as total_warns
+                FROM punicoes
+                WHERE tipo = 'Warn'
+                GROUP BY membro_id
+            """)
+            warns_dict = {w["membro_id"]: w["total_warns"] for w in warns}
+
+            # Estatísticas por membro
+            stats = await conn.fetch("""
+                SELECT 
+                    p.membro_id,
+                    COUNT(*) FILTER (WHERE t.tipo = 'Interno' AND p.presenca = 'Presente') as internos,
+                    COUNT(*) FILTER (WHERE t.tipo = 'Amistoso' AND p.presenca = 'Presente') as amistosos
+                FROM presencas_treino p
+                JOIN treinos t ON p.treino_id = t.id_treino
+                WHERE p.presenca = 'Presente'
+                GROUP BY p.membro_id
+            """)
+            stats_dict = {s["membro_id"]: {"internos": s["internos"], "amistosos": s["amistosos"]} for s in stats}
+
+            # Guerras por membro
+            try:
+                guerras = await conn.fetch("""
+                    SELECT membro_id, COUNT(*) as total_guerras
+                    FROM participacoes_guerra
+                    GROUP BY membro_id
+                """)
+                guerras_dict = {g["membro_id"]: g["total_guerras"] for g in guerras}
+            except:
+                guerras_dict = {}
+
+            # Monta lista final com todos os dados
+            resultado = []
+            for m in membros:
+                m_dict = dict(m)
+                m_dict["warns"] = warns_dict.get(m["discord_id"], 0)
+                m_dict["stats"] = {
+                    "internos": stats_dict.get(m["discord_id"], {}).get("internos", 0),
+                    "amistosos": stats_dict.get(m["discord_id"], {}).get("amistosos", 0),
+                    "guerras": guerras_dict.get(m["discord_id"], 0)
+                }
+                resultado.append(m_dict)
+
+            return resultado
         finally:
             await conn.close()
     return asyncio.run(_get())
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=300)
 def carregar_treinos():
     async def _get():
         conn = await get_db()
@@ -188,7 +204,7 @@ def carregar_treinos():
             await conn.close()
     return asyncio.run(_get())
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=300)
 def carregar_membros_ativos():
     async def _get():
         conn = await get_db()
@@ -201,7 +217,7 @@ def carregar_membros_ativos():
 
 # ========== CARREGAR DADOS ==========
 try:
-    membros = carregar_membros()
+    membros = carregar_dados_completos()
     treinos = carregar_treinos()
     membros_ativos = carregar_membros_ativos()
 except Exception as e:
@@ -268,7 +284,6 @@ with tabs[1]:
     else:
         for m in membros_filtrados:
             with st.container():
-                # Linha principal com avatar, nome RP e cargo
                 col_avatar, col_info, col_cargo = st.columns([1, 4, 2])
 
                 with col_avatar:
@@ -286,25 +301,13 @@ with tabs[1]:
                     st.markdown(f"**{m['cargo']}**")
                     st.caption(f"Divisão: {m['divisao'] or 'Sem divisão'}")
 
-                    # Contagem de warns
-                    async def contar_warns(discord_id):
-                        conn = await get_db()
-                        try:
-                            count = await conn.fetchval(
-                                "SELECT COUNT(*) FROM punicoes WHERE membro_id = $1 AND tipo = 'Warn'",
-                                discord_id
-                            )
-                            return count
-                        finally:
-                            await conn.close()
-
-                    warns = asyncio.run(contar_warns(m["discord_id"]))
+                    # Warns já carregados
+                    warns = m["warns"]
                     if warns > 0:
                         st.markdown(f"⚠️ **Warns:** {warns}")
                     else:
                         st.caption("⚠️ Warns: 0")
 
-                # Expander com detalhes e ações
                 with st.expander(f"📋 Detalhes de {nome_principal}", expanded=False):
                     col1, col2 = st.columns(2)
                     with col1:
@@ -322,10 +325,10 @@ with tabs[1]:
                         st.markdown(f"**Divisão:** {m['divisao'] or 'Sem divisão'}")
                         st.markdown(f"**Status:** {m['status']}")
                         st.markdown(f"**Entrada:** {m['data_entrada']}")
-                        st.markdown(f"**Warns:** {warns}")
+                        st.markdown(f"**Warns:** {m['warns']}")
 
-                    # Estatísticas de participação
-                    stats = asyncio.run(get_estatisticas_membro(m["discord_id"]))
+                    # Estatísticas já carregadas
+                    stats = m["stats"]
                     st.divider()
                     st.markdown("### 📈 Estatísticas")
                     col_st1, col_st2, col_st3 = st.columns(3)
@@ -333,33 +336,26 @@ with tabs[1]:
                     col_st2.metric("Treinos Amistosos", stats["amistosos"])
                     col_st3.metric("Guerras", stats["guerras"])
 
-                    # Ações de gerenciamento (apenas liderança/dono)
                     if pode_gerenciar_membros:
                         st.divider()
                         st.markdown("### 🔧 Ações")
-
-                        # Botões de ação rápida
                         col_acao1, col_acao2, col_acao3, col_acao4 = st.columns(4)
 
-                        # Botão de advertência
                         with col_acao1:
                             if st.button("⚠️ Advertir", key=f"advertir_{m['discord_id']}"):
                                 st.session_state.advertir_membro = m["discord_id"]
                                 st.rerun()
 
-                        # Botão de trocar cargo
                         with col_acao2:
                             if st.button("⚜️ Trocar cargo", key=f"trocar_cargo_btn_{m['discord_id']}"):
                                 st.session_state.trocar_cargo_membro = m["discord_id"]
                                 st.rerun()
 
-                        # Botão de histórico de warns
                         with col_acao3:
                             if st.button("📜 Histórico", key=f"hist_warns_{m['discord_id']}"):
                                 st.session_state.historico_membro = m["discord_id"]
                                 st.rerun()
 
-                        # Botão de remover
                         with col_acao4:
                             if st.button("🗑️ Remover", key=f"remover_btn_{m['discord_id']}"):
                                 async def remover_membro():
@@ -375,7 +371,7 @@ with tabs[1]:
 
                 st.divider()
 
-# Formulário de advertência (modal simplificado)
+# Formulário de advertência
 if "advertir_membro" in st.session_state:
     membro_alvo_id = st.session_state.advertir_membro
     membro_alvo = next((m for m in membros if m["discord_id"] == membro_alvo_id), None)
@@ -405,7 +401,7 @@ if "advertir_membro" in st.session_state:
                     st.cache_data.clear()
                     st.rerun()
 
-# Formulário de troca de cargo (modal simplificado)
+# Formulário de troca de cargo
 if "trocar_cargo_membro" in st.session_state:
     membro_alvo_id = st.session_state.trocar_cargo_membro
     membro_alvo = next((m for m in membros if m["discord_id"] == membro_alvo_id), None)
@@ -474,7 +470,6 @@ if "historico_membro" in st.session_state:
 with tabs[2]:
     st.header("🗓️ Mural de Treinos")
 
-    # Inclui o dono como alguém que pode gerenciar
     pode_gerenciar_presenca = tem_cargo("Lider") or tem_cargo("Vice-Lider") or tem_cargo("Líder de Divisão") or eh_dono()
 
     if pode_gerenciar_presenca:
@@ -512,7 +507,6 @@ with tabs[2]:
     else:
         for t in treinos:
             with st.container():
-                # Cabeçalho do treino com título e botão X para deletar
                 col_titulo, col_delete = st.columns([8, 1])
                 with col_titulo:
                     st.subheader(f"📅 {t['titulo']}")
@@ -530,14 +524,12 @@ with tabs[2]:
                             st.cache_data.clear()
                             st.rerun()
 
-                # Informações do treino
                 col1, col2, col3 = st.columns(3)
                 col1.caption(f"Data: {t['data_treino']} às {t['horario']}")
                 col2.caption(f"Tipo: {t['tipo']}")
                 col3.caption(f"Status: {t['status']}")
                 st.caption(f"Inscritos: {t['inscritos']}")
 
-                # Inscrição simplificada para todos
                 with st.expander("📝 Inscrição de presença", expanded=False):
                     membro_id = st.session_state.user["id"]
 
@@ -591,7 +583,6 @@ with tabs[2]:
                             st.cache_data.clear()
                             st.rerun()
 
-                # Marcar presença (apenas liderança)
                 if pode_gerenciar_presenca:
                     with st.expander("✅ Marcar presença", expanded=False):
                         async def get_inscritos(treino_id):
