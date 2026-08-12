@@ -357,7 +357,8 @@ with tabs[1]:
 with tabs[2]:
     st.header("🗓️ Mural de Treinos")
 
-    pode_gerenciar_presenca = tem_cargo("Lider") or tem_cargo("Vice-Lider") or tem_cargo("Líder de Divisão")
+    # Inclui o dono como alguém que pode gerenciar
+    pode_gerenciar_presenca = tem_cargo("Lider") or tem_cargo("Vice-Lider") or tem_cargo("Líder de Divisão") or eh_dono()
 
     if pode_gerenciar_presenca:
         with st.expander("➕ Criar Novo Treino", expanded=False):
@@ -418,42 +419,90 @@ with tabs[2]:
                             st.cache_data.clear()
                             st.rerun()
 
+                # Inscrição simplificada
                 with st.expander("📝 Inscrição de presença", expanded=False):
-                    nomes_membros = {}
-                    for m in membros_ativos:
-                        nome_principal = m["nome_rp"] or m["discord_username"]
-                        nomes_membros[nome_principal] = m["discord_id"]
-
                     if not pode_gerenciar_presenca:
-                        nome_usuario = st.session_state.user.get("nome_rp") or st.session_state.user["nome"]
-                        if nome_usuario in nomes_membros:
-                            membro_selecionado = nome_usuario
-                        else:
-                            membro_selecionado = st.selectbox("Selecione o membro", list(nomes_membros.keys()), key=f"membro_{t['id_treino']}")
-                    else:
-                        membro_selecionado = st.selectbox("Selecione o membro", list(nomes_membros.keys()), key=f"membro_{t['id_treino']}")
+                        # Membro normal: inscrever a si mesmo
+                        membro_id = st.session_state.user["id"]
 
-                    inscricao = st.radio("Confirmação", ["Confirmado", "Recusado", "Pendente"], key=f"inscricao_{t['id_treino']}")
-                    if st.button("Registrar inscrição", key=f"btn_inscricao_{t['id_treino']}"):
-                        async def inserir_inscricao():
+                        async def verificar_inscricao(treino_id, membro_id):
                             conn = await get_db()
                             try:
-                                await conn.execute(
-                                    """
-                                    INSERT INTO presencas_treino (treino_id, membro_id, inscricao)
-                                    VALUES ($1, $2, $3)
-                                    ON CONFLICT (treino_id, membro_id)
-                                    DO UPDATE SET inscricao = EXCLUDED.inscricao
-                                    """,
-                                    t['id_treino'], nomes_membros[membro_selecionado], inscricao
+                                row = await conn.fetchrow(
+                                    "SELECT inscricao FROM presencas_treino WHERE treino_id = $1 AND membro_id = $2",
+                                    treino_id, membro_id
                                 )
+                                return row["inscricao"] if row else None
                             finally:
                                 await conn.close()
-                        asyncio.run(inserir_inscricao())
-                        st.success("Inscrição registrada!")
-                        st.cache_data.clear()
-                        st.rerun()
 
+                        status_inscricao = asyncio.run(verificar_inscricao(t['id_treino'], membro_id))
+
+                        if status_inscricao is None:
+                            if st.button("✅ Inscrever-se", key=f"inscrever_{t['id_treino']}"):
+                                async def inserir_inscricao():
+                                    conn = await get_db()
+                                    try:
+                                        await conn.execute(
+                                            """
+                                            INSERT INTO presencas_treino (treino_id, membro_id, inscricao)
+                                            VALUES ($1, $2, 'Confirmado')
+                                            ON CONFLICT (treino_id, membro_id)
+                                            DO UPDATE SET inscricao = 'Confirmado'
+                                            """,
+                                            t['id_treino'], membro_id
+                                        )
+                                    finally:
+                                        await conn.close()
+                                asyncio.run(inserir_inscricao())
+                                st.success("Inscrição confirmada!")
+                                st.cache_data.clear()
+                                st.rerun()
+                        else:
+                            st.markdown(f"**Status:** {status_inscricao}")
+                            if st.button("❌ Ausentar-me", key=f"ausentar_{t['id_treino']}"):
+                                async def ausentar():
+                                    conn = await get_db()
+                                    try:
+                                        await conn.execute(
+                                            "UPDATE presencas_treino SET inscricao = 'Recusado' WHERE treino_id = $1 AND membro_id = $2",
+                                            t['id_treino'], membro_id
+                                        )
+                                    finally:
+                                        await conn.close()
+                                asyncio.run(ausentar())
+                                st.success("Você foi retirado da lista de inscritos.")
+                                st.cache_data.clear()
+                                st.rerun()
+                    else:
+                        # Liderança: pode inscrever qualquer um
+                        nomes_membros = {}
+                        for m in membros_ativos:
+                            nome_principal = m["nome_rp"] or m["discord_username"]
+                            nomes_membros[nome_principal] = m["discord_id"]
+                        membro_selecionado = st.selectbox("Selecione o membro", list(nomes_membros.keys()), key=f"membro_{t['id_treino']}")
+                        inscricao = st.radio("Confirmação", ["Confirmado", "Recusado", "Pendente"], key=f"inscricao_{t['id_treino']}")
+                        if st.button("Registrar inscrição", key=f"btn_inscricao_{t['id_treino']}"):
+                            async def inserir_inscricao():
+                                conn = await get_db()
+                                try:
+                                    await conn.execute(
+                                        """
+                                        INSERT INTO presencas_treino (treino_id, membro_id, inscricao)
+                                        VALUES ($1, $2, $3)
+                                        ON CONFLICT (treino_id, membro_id)
+                                        DO UPDATE SET inscricao = EXCLUDED.inscricao
+                                        """,
+                                        t['id_treino'], nomes_membros[membro_selecionado], inscricao
+                                    )
+                                finally:
+                                    await conn.close()
+                            asyncio.run(inserir_inscricao())
+                            st.success("Inscrição registrada!")
+                            st.cache_data.clear()
+                            st.rerun()
+
+                # Marcar presença (apenas liderança)
                 if pode_gerenciar_presenca:
                     with st.expander("✅ Marcar presença", expanded=False):
                         async def get_inscritos(treino_id):
