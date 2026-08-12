@@ -132,7 +132,7 @@ def carregar_membros():
         try:
             rows = await conn.fetch("""
                 SELECT discord_id, discord_username, nome_roblox, nome_rp, genero, altura_jogo,
-                       estilo_luta_principal, cargo, divisao, status, avatar_hash
+                       estilo_luta_principal, cargo, divisao, status, data_entrada, avatar_hash
                 FROM membros
                 ORDER BY data_entrada DESC
             """)
@@ -237,7 +237,6 @@ with tabs[1]:
     else:
         for m in membros_filtrados:
             with st.container():
-                # Linha principal com avatar, nome RP e cargo
                 col_avatar, col_info, col_cargo = st.columns([1, 4, 2])
 
                 with col_avatar:
@@ -245,10 +244,8 @@ with tabs[1]:
                     st.image(avatar_url, width=70)
 
                 with col_info:
-                    # Nome RP como principal
                     nome_principal = m["nome_rp"] or m["discord_username"]
                     st.markdown(f"### {nome_principal}")
-                    # Discord e Roblox como secundários
                     st.caption(f"Discord: {m['discord_username']}")
                     st.caption(f"Roblox: {m['nome_roblox']}")
 
@@ -257,7 +254,6 @@ with tabs[1]:
                     st.markdown(f"**{m['cargo']}**")
                     st.caption(f"Divisão: {m['divisao'] or 'Sem divisão'}")
 
-                # Expander com detalhes e ações
                 with st.expander(f"📋 Detalhes de {nome_principal}", expanded=False):
                     col1, col2 = st.columns(2)
                     with col1:
@@ -276,7 +272,6 @@ with tabs[1]:
                         st.markdown(f"**Status:** {m['status']}")
                         st.markdown(f"**Entrada:** {m['data_entrada']}")
 
-                    # Ações de gerenciamento (apenas liderança)
                     if pode_gerenciar_membros:
                         st.divider()
                         st.markdown("### 🔧 Gerenciar")
@@ -317,14 +312,13 @@ with tabs[1]:
                                 st.rerun()
 
                 st.divider()
+
 # ========== ABA TREINOS ==========
 with tabs[2]:
     st.header("🗓️ Mural de Treinos")
 
-    # Verificar se pode gerenciar presença
     pode_gerenciar_presenca = tem_cargo("Lider") or tem_cargo("Vice-Lider") or tem_cargo("Líder de Divisão")
 
-    # Criar novo treino (apenas liderança)
     if pode_gerenciar_presenca:
         with st.expander("➕ Criar Novo Treino", expanded=False):
             with st.form("novo_treino", clear_on_submit=True):
@@ -355,7 +349,6 @@ with tabs[2]:
                     st.cache_data.clear()
                     st.rerun()
 
-    # Listar treinos
     if not treinos:
         st.info("Nenhum treino cadastrado.")
     else:
@@ -363,14 +356,12 @@ with tabs[2]:
             with st.container():
                 st.subheader(f"📅 {t['titulo']}")
 
-                # Data, tipo e status
                 col1, col2, col3 = st.columns(3)
                 col1.caption(f"Data: {t['data_treino']} às {t['horario']}")
                 col2.caption(f"Tipo: {t['tipo']}")
                 col3.caption(f"Status: {t['status']}")
                 st.caption(f"Inscritos: {t['inscritos']}")
 
-                # Botão de deletar (apenas liderança)
                 if pode_gerenciar_presenca:
                     if st.button("🗑️ Deletar treino", key=f"del_{t['id_treino']}"):
                         async def deletar_treino():
@@ -384,23 +375,19 @@ with tabs[2]:
                         st.cache_data.clear()
                         st.rerun()
 
-                # Inscrição de presença (todos)
                 with st.expander("📝 Inscrição de presença", expanded=False):
                     nomes_membros = {}
                     for m in membros_ativos:
                         nome_principal = m["nome_rp"] or m["discord_username"]
                         nomes_membros[nome_principal] = m["discord_id"]
 
-                    # Se o usuário é membro normal, inscrever a si mesmo
                     if not pode_gerenciar_presenca:
-                        # Tenta achar o nome do usuário logado na lista
                         nome_usuario = st.session_state.user.get("nome_rp") or st.session_state.user["nome"]
                         if nome_usuario in nomes_membros:
                             membro_selecionado = nome_usuario
                         else:
                             membro_selecionado = st.selectbox("Selecione o membro", list(nomes_membros.keys()), key=f"membro_{t['id_treino']}")
                     else:
-                        # Liderança pode inscrever qualquer um
                         membro_selecionado = st.selectbox("Selecione o membro", list(nomes_membros.keys()), key=f"membro_{t['id_treino']}")
 
                     inscricao = st.radio("Confirmação", ["Confirmado", "Recusado", "Pendente"], key=f"inscricao_{t['id_treino']}")
@@ -424,7 +411,6 @@ with tabs[2]:
                         st.cache_data.clear()
                         st.rerun()
 
-                # Marcar presença (apenas liderança)
                 if pode_gerenciar_presenca:
                     with st.expander("✅ Marcar presença", expanded=False):
                         async def get_inscritos(treino_id):
@@ -445,8 +431,6 @@ with tabs[2]:
                         else:
                             for p in presencas:
                                 col1, col2, col3, col4 = st.columns([3,2,2,2])
-
-                                # Avatar + nome RP
                                 avatar_url = discord_avatar_url(p["membro_id"], p["avatar_hash"])
                                 col1.image(avatar_url, width=40)
                                 nome_rp = p["nome_rp"] or p["discord_username"]
