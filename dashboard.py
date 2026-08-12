@@ -579,7 +579,197 @@ elif aba == "Treinos":
 # ========== ABA DIVISÕES ==========
 elif aba == "Divisões":
     st.header("🔰 Divisões")
-    st.info("Em breve: gerenciamento de divisões, líderes e membros.")
+
+    pode_gerenciar_divisoes = tem_cargo("Lider") or tem_cargo("Vice-Lider") or eh_dono()
+
+    # ========== CRIAR NOVA DIVISÃO ==========
+    if pode_gerenciar_divisoes:
+        with st.expander("➕ Criar Nova Divisão", expanded=False):
+            with st.form("nova_divisao", clear_on_submit=True):
+                col1, col2 = st.columns(2)
+                with col1:
+                    nome_divisao = st.text_input("Nome da Divisão")
+                    discord_role_id = st.text_input("ID do Cargo no Discord")
+                with col2:
+                    logo_url = st.text_input("URL da Logo (opcional)")
+                    funcao = st.text_input("Função principal (opcional)")
+
+                submitted = st.form_submit_button("Criar Divisão")
+                if submitted and nome_divisao:
+                    async def criar_divisao():
+                        conn = await get_db()
+                        try:
+                            await conn.execute(
+                                """
+                                INSERT INTO divisoes (nome_divisao, logo_url, discord_role_id, funcao_principal)
+                                VALUES ($1, $2, $3, $4)
+                                """,
+                                nome_divisao, logo_url or None, discord_role_id or None, funcao or None
+                            )
+                        finally:
+                            await conn.close()
+                    asyncio.run(criar_divisao())
+                    st.success(f"✅ Divisão **{nome_divisao}** criada!")
+                    st.cache_data.clear()
+                    st.rerun()
+
+    # ========== LISTAR DIVISÕES ==========
+    async def carregar_divisoes():
+        conn = await get_db()
+        try:
+            rows = await conn.fetch("""
+                SELECT d.*, 
+                       l.nome_rp as lider_nome, l.discord_username as lider_discord,
+                       v.nome_rp as vice_nome, v.discord_username as vice_discord
+                FROM divisoes d
+                LEFT JOIN membros l ON d.lider_id = l.discord_id
+                LEFT JOIN membros v ON d.vice_lider_id = v.discord_id
+                ORDER BY d.nome_divisao
+            """)
+            return [dict(row) for row in rows]
+        finally:
+            await conn.close()
+
+    divisoes = asyncio.run(carregar_divisoes())
+
+    if not divisoes:
+        st.info("Nenhuma divisão criada ainda.")
+    else:
+        for d in divisoes:
+            with st.container():
+                # Cabeçalho da divisão
+                col_logo, col_info, col_acoes = st.columns([1, 3, 1])
+                with col_logo:
+                    if d["logo_url"]:
+                        st.image(d["logo_url"], width=80)
+                    else:
+                        st.markdown("🔰")
+                with col_info:
+                    st.subheader(d["nome_divisao"])
+                    st.caption(f"ID do Cargo: {d['discord_role_id'] or 'N/A'}")
+                    if d["funcao_principal"]:
+                        st.caption(f"Função: {d['funcao_principal']}")
+                with col_acoes:
+                    if pode_gerenciar_divisoes:
+                        if st.button("🗑️", key=f"del_div_{d['id']}", help="Deletar divisão"):
+                            async def deletar_divisao():
+                                conn = await get_db()
+                                try:
+                                    await conn.execute("DELETE FROM divisoes WHERE id = $1", d['id'])
+                                finally:
+                                    await conn.close()
+                            asyncio.run(deletar_divisao())
+                            st.success("Divisão deletada!")
+                            st.cache_data.clear()
+                            st.rerun()
+
+                # Líder e Vice-Líder
+                col_lider, col_vice = st.columns(2)
+                with col_lider:
+                    st.markdown(f"**👑 Líder:** {d['lider_nome'] or 'Não definido'}")
+                    if d["lider_discord"]:
+                        st.caption(f"Discord: {d['lider_discord']}")
+                with col_vice:
+                    st.markdown(f"**⚜️ Vice-Líder:** {d['vice_nome'] or 'Não definido'}")
+                    if d["vice_discord"]:
+                        st.caption(f"Discord: {d['vice_discord']}")
+
+                # Membros da divisão
+                async def carregar_membros_divisao(divisao_id):
+                    conn = await get_db()
+                    try:
+                        rows = await conn.fetch("""
+                            SELECT discord_id, discord_username, nome_rp, avatar_hash
+                            FROM membros
+                            WHERE divisao_id = $1
+                            ORDER BY nome_rp
+                        """, divisao_id)
+                        return [dict(row) for row in rows]
+                    finally:
+                        await conn.close()
+
+                membros_divisao = asyncio.run(carregar_membros_divisao(d["id"]))
+                st.caption(f"**Membros:** {len(membros_divisao)}")
+
+                if membros_divisao:
+                    for m in membros_divisao:
+                        col_avatar, col_nome = st.columns([1, 5])
+                        with col_avatar:
+                            avatar_url = discord_avatar_url(m["discord_id"], m["avatar_hash"])
+                            st.image(avatar_url, width=30)
+                        with col_nome:
+                            nome = m["nome_rp"] or m["discord_username"]
+                            st.markdown(f"{nome}")
+
+                # Gerenciar divisão (apenas liderança)
+                if pode_gerenciar_divisoes:
+                    with st.expander(f"⚙️ Gerenciar {d['nome_divisao']}", expanded=False):
+                        # Selecionar líder
+                        nomes_membros = {m["nome_rp"] or m["discord_username"]: m["discord_id"] for m in membros}
+                        
+                        col_lider_sel, col_vice_sel = st.columns(2)
+                        with col_lider_sel:
+                            novo_lider = st.selectbox(
+                                "Líder",
+                                ["Nenhum"] + list(nomes_membros.keys()),
+                                key=f"lider_{d['id']}"
+                            )
+                        with col_vice_sel:
+                            novo_vice = st.selectbox(
+                                "Vice-Líder",
+                                ["Nenhum"] + list(nomes_membros.keys()),
+                                key=f"vice_{d['id']}"
+                            )
+
+                        # Selecionar membros para adicionar
+                        novos_membros = st.multiselect(
+                            "Adicionar membros",
+                            list(nomes_membros.keys()),
+                            key=f"add_membros_{d['id']}"
+                        )
+
+                        if st.button("💾 Salvar alterações", key=f"salvar_div_{d['id']}"):
+                            async def atualizar_divisao():
+                                conn = await get_db()
+                                try:
+                                    # Atualizar líder
+                                    if novo_lider != "Nenhum":
+                                        await conn.execute(
+                                            "UPDATE divisoes SET lider_id = $1 WHERE id = $2",
+                                            nomes_membros[novo_lider], d['id']
+                                        )
+                                    else:
+                                        await conn.execute(
+                                            "UPDATE divisoes SET lider_id = NULL WHERE id = $1",
+                                            d['id']
+                                        )
+                                    
+                                    # Atualizar vice-líder
+                                    if novo_vice != "Nenhum":
+                                        await conn.execute(
+                                            "UPDATE divisoes SET vice_lider_id = $1 WHERE id = $2",
+                                            nomes_membros[novo_vice], d['id']
+                                        )
+                                    else:
+                                        await conn.execute(
+                                            "UPDATE divisoes SET vice_lider_id = NULL WHERE id = $1",
+                                            d['id']
+                                        )
+                                    
+                                    # Adicionar membros
+                                    for nome in novos_membros:
+                                        await conn.execute(
+                                            "UPDATE membros SET divisao_id = $1 WHERE discord_id = $2",
+                                            d['id'], nomes_membros[nome]
+                                        )
+                                finally:
+                                    await conn.close()
+                            asyncio.run(atualizar_divisao())
+                            st.success("Divisão atualizada!")
+                            st.cache_data.clear()
+                            st.rerun()
+
+                st.divider()
 
 # ========== ABA PARCERIAS ==========
 elif aba == "Parcerias":
