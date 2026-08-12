@@ -77,11 +77,11 @@ class Membros(commands.Cog):
         # Insere no banco
         await execute(
             """
-            INSERT INTO membros (discord_id, discord_username, nome_roblox, nome_rp, genero, altura_jogo, estilo_luta_principal, divisao, cargo, status, data_entrada)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'Recruta', 'Ativo', $9)
+            INSERT INTO membros (discord_id, discord_username, nome_roblox, nome_rp, genero, altura_jogo, estilo_luta_principal, cargo, status, data_entrada)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, 'Recruta', 'Ativo', $8)
             """,
-            discord_id, discord_username, nome_roblox, nome_rp, genero, altura, estilo_luta, divisao, datetime.date.today()
-        )
+            discord_id, discord_username, nome_roblox, nome_rp, genero, altura, estilo_luta, datetime.date.today()
+            )
 
         # Salva a hash do avatar automaticamente
         avatar_hash = membro.avatar.key if membro.avatar else None
