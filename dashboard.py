@@ -257,54 +257,89 @@ with tabs[1]:
 with tabs[2]:
     st.header("🗓️ Mural de Treinos")
 
-    with st.expander("➕ Criar Novo Treino", expanded=False):
-        with st.form("novo_treino", clear_on_submit=True):
-            titulo = st.text_input("Título do treino")
-            descricao = st.text_area("Descrição")
-            data_treino = st.date_input("Data")
-            horario = st.time_input("Horário")
-            tipo = st.selectbox("Tipo", ["Interno", "Amistoso", "Obrigatório", "Extra"])
-            local = st.text_input("Local (ex: Arena 1, Roblox)")
-            divisao = st.text_input("Divisão responsável (opcional)")
+    # Verificar se pode gerenciar presença
+    pode_gerenciar_presenca = tem_cargo("Lider") or tem_cargo("Vice-Lider") or tem_cargo("Líder de Divisão")
 
-            submitted = st.form_submit_button("Criar Treino")
-            if submitted:
-                async def inserir_treino():
-                    conn = await get_db()
-                    try:
-                        await conn.execute(
-                            """
-                            INSERT INTO treinos (titulo, descricao, data_treino, horario, tipo, local, divisao_responsavel, criado_por)
-                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                            """,
-                            titulo, descricao, data_treino, horario, tipo, local, divisao, st.session_state.user["id"]
-                        )
-                    finally:
-                        await conn.close()
-                asyncio.run(inserir_treino())
-                st.success(f"✅ Treino **{titulo}** criado com sucesso!")
-                st.rerun()
+    # Criar novo treino (apenas liderança)
+    if pode_gerenciar_presenca:
+        with st.expander("➕ Criar Novo Treino", expanded=False):
+            with st.form("novo_treino", clear_on_submit=True):
+                titulo = st.text_input("Título do treino")
+                descricao = st.text_area("Descrição")
+                data_treino = st.date_input("Data")
+                horario = st.time_input("Horário")
+                tipo = st.selectbox("Tipo", ["Interno", "Amistoso", "Obrigatório", "Extra"])
+                local = st.text_input("Local (ex: Arena 1, Roblox)")
+                divisao = st.text_input("Divisão responsável (opcional)")
 
+                submitted = st.form_submit_button("Criar Treino")
+                if submitted:
+                    async def inserir_treino():
+                        conn = await get_db()
+                        try:
+                            await conn.execute(
+                                """
+                                INSERT INTO treinos (titulo, descricao, data_treino, horario, tipo, local, divisao_responsavel, criado_por)
+                                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                                """,
+                                titulo, descricao, data_treino, horario, tipo, local, divisao, st.session_state.user["id"]
+                            )
+                        finally:
+                            await conn.close()
+                    asyncio.run(inserir_treino())
+                    st.success(f"✅ Treino **{titulo}** criado com sucesso!")
+                    st.cache_data.clear()
+                    st.rerun()
+
+    # Listar treinos
     if not treinos:
         st.info("Nenhum treino cadastrado.")
     else:
         for t in treinos:
             with st.container():
                 st.subheader(f"📅 {t['titulo']}")
+
+                # Data, tipo e status
                 col1, col2, col3 = st.columns(3)
                 col1.caption(f"Data: {t['data_treino']} às {t['horario']}")
                 col2.caption(f"Tipo: {t['tipo']}")
                 col3.caption(f"Status: {t['status']}")
                 st.caption(f"Inscritos: {t['inscritos']}")
 
+                # Botão de deletar (apenas liderança)
+                if pode_gerenciar_presenca:
+                    if st.button("🗑️ Deletar treino", key=f"del_{t['id_treino']}"):
+                        async def deletar_treino():
+                            conn = await get_db()
+                            try:
+                                await conn.execute("DELETE FROM treinos WHERE id_treino = $1", t['id_treino'])
+                            finally:
+                                await conn.close()
+                        asyncio.run(deletar_treino())
+                        st.success("Treino deletado!")
+                        st.cache_data.clear()
+                        st.rerun()
+
+                # Inscrição de presença (todos)
                 with st.expander("📝 Inscrição de presença", expanded=False):
                     nomes_membros = {}
                     for m in membros_ativos:
                         nome_principal = m["nome_rp"] or m["discord_username"]
                         nomes_membros[nome_principal] = m["discord_id"]
-                    membro_selecionado = st.selectbox("Selecione o membro", list(nomes_membros.keys()), key=f"membro_{t['id_treino']}")
-                    inscricao = st.radio("Confirmação", ["Confirmado", "Recusado", "Pendente"], key=f"inscricao_{t['id_treino']}")
 
+                    # Se o usuário é membro normal, inscrever a si mesmo
+                    if not pode_gerenciar_presenca:
+                        # Tenta achar o nome do usuário logado na lista
+                        nome_usuario = st.session_state.user.get("nome_rp") or st.session_state.user["nome"]
+                        if nome_usuario in nomes_membros:
+                            membro_selecionado = nome_usuario
+                        else:
+                            membro_selecionado = st.selectbox("Selecione o membro", list(nomes_membros.keys()), key=f"membro_{t['id_treino']}")
+                    else:
+                        # Liderança pode inscrever qualquer um
+                        membro_selecionado = st.selectbox("Selecione o membro", list(nomes_membros.keys()), key=f"membro_{t['id_treino']}")
+
+                    inscricao = st.radio("Confirmação", ["Confirmado", "Recusado", "Pendente"], key=f"inscricao_{t['id_treino']}")
                     if st.button("Registrar inscrição", key=f"btn_inscricao_{t['id_treino']}"):
                         async def inserir_inscricao():
                             conn = await get_db()
@@ -322,50 +357,59 @@ with tabs[2]:
                                 await conn.close()
                         asyncio.run(inserir_inscricao())
                         st.success("Inscrição registrada!")
+                        st.cache_data.clear()
                         st.rerun()
 
-                with st.expander("✅ Marcar presença", expanded=False):
-                    async def get_inscritos(treino_id):
-                        conn = await get_db()
-                        try:
-                            rows = await conn.fetch("""
-                                SELECT p.membro_id, m.discord_username, m.nome_rp, p.inscricao, p.presenca
-                                FROM presencas_treino p
-                                JOIN membros m ON p.membro_id = m.discord_id
-                                WHERE p.treino_id = $1
-                            """, treino_id)
-                            return [dict(row) for row in rows]
-                        finally:
-                            await conn.close()
-                    presencas = asyncio.run(get_inscritos(t['id_treino']))
-                    if not presencas:
-                        st.caption("Nenhum inscrito ainda.")
-                    else:
-                        for p in presencas:
-                            col1, col2, col3, col4 = st.columns([3,2,2,2])
-                            nome_rp = p["nome_rp"] or p["discord_username"]
-                            col1.markdown(f"**{nome_rp}**")
-                            col1.caption(f"Discord: {p['discord_username']}")
-                            col2.write(f"Inscrição: {p['inscricao']}")
-                            nova_presenca = col3.selectbox(
-                                "Presença",
-                                ["Pendente", "Presente", "Ausente", "Justificado"],
-                                index=["Pendente", "Presente", "Ausente", "Justificado"].index(p["presenca"]),
-                                key=f"presenca_{t['id_treino']}_{p['membro_id']}"
-                            )
-                            if col4.button("Salvar", key=f"salvar_presenca_{t['id_treino']}_{p['membro_id']}"):
-                                async def atualizar_presenca():
-                                    conn = await get_db()
-                                    try:
-                                        await conn.execute(
-                                            "UPDATE presencas_treino SET presenca = $1 WHERE treino_id = $2 AND membro_id = $3",
-                                            nova_presenca, t['id_treino'], p['membro_id']
-                                        )
-                                    finally:
-                                        await conn.close()
-                                asyncio.run(atualizar_presenca())
-                                st.success("Presença atualizada!")
-                                st.rerun()
+                # Marcar presença (apenas liderança)
+                if pode_gerenciar_presenca:
+                    with st.expander("✅ Marcar presença", expanded=False):
+                        async def get_inscritos(treino_id):
+                            conn = await get_db()
+                            try:
+                                rows = await conn.fetch("""
+                                    SELECT p.membro_id, m.discord_username, m.nome_rp, m.avatar_hash, p.inscricao, p.presenca
+                                    FROM presencas_treino p
+                                    JOIN membros m ON p.membro_id = m.discord_id
+                                    WHERE p.treino_id = $1
+                                """, treino_id)
+                                return [dict(row) for row in rows]
+                            finally:
+                                await conn.close()
+                        presencas = asyncio.run(get_inscritos(t['id_treino']))
+                        if not presencas:
+                            st.caption("Nenhum inscrito ainda.")
+                        else:
+                            for p in presencas:
+                                col1, col2, col3, col4 = st.columns([3,2,2,2])
+
+                                # Avatar + nome RP
+                                avatar_url = discord_avatar_url(p["membro_id"], p["avatar_hash"])
+                                col1.image(avatar_url, width=40)
+                                nome_rp = p["nome_rp"] or p["discord_username"]
+                                col1.markdown(f"**{nome_rp}**")
+                                col1.caption(f"Discord: {p['discord_username']}")
+
+                                col2.write(f"Inscrição: {p['inscricao']}")
+                                nova_presenca = col3.selectbox(
+                                    "Presença",
+                                    ["Pendente", "Presente", "Ausente", "Justificado"],
+                                    index=["Pendente", "Presente", "Ausente", "Justificado"].index(p["presenca"]),
+                                    key=f"presenca_{t['id_treino']}_{p['membro_id']}"
+                                )
+                                if col4.button("Salvar", key=f"salvar_presenca_{t['id_treino']}_{p['membro_id']}"):
+                                    async def atualizar_presenca():
+                                        conn = await get_db()
+                                        try:
+                                            await conn.execute(
+                                                "UPDATE presencas_treino SET presenca = $1 WHERE treino_id = $2 AND membro_id = $3",
+                                                nova_presenca, t['id_treino'], p['membro_id']
+                                            )
+                                        finally:
+                                            await conn.close()
+                                    asyncio.run(atualizar_presenca())
+                                    st.success("Presença atualizada!")
+                                    st.cache_data.clear()
+                                    st.rerun()
                 st.divider()
 
 # ========== ABA DIVISÕES (placeholder) ==========
