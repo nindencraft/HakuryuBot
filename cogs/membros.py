@@ -43,7 +43,7 @@ class Membros(commands.Cog):
         member: discord.Member,
         funcao: str,
         gang_id: int
-    ) ->     bool:
+    ) -> bool:
 
         row = await fetch_one(
             """
