@@ -6,6 +6,7 @@ import datetime
 import traceback
 from typing import Literal
 
+print("🔥🔥🔥 MEMBROS.PY NOVO FOI CARREGADO 🔥🔥🔥")
 
 class Membros(commands.Cog):
     def __init__(self, bot):
