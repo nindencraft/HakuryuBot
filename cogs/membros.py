@@ -164,6 +164,32 @@ class Membros(commands.Cog):
                 gang_id,
             )
 
+            # Buscar o ID do cargo "Em Analise" configurado para a gang
+            cargo_row = await fetch_one(
+                    """
+                    SELECT valor
+                    FROM gang_config
+                    WHERE gang_id = $1
+                      AND chave = 'cargo_id:Em Analise'
+                    """,
+                    gang_id,
+                )
+
+            if cargo_row and cargo_row["valor"]:
+                try:
+                    cargo_id = int(cargo_row["valor"])
+                    cargo = interaction.guild.get_role(cargo_id)
+
+                    if cargo:
+                        await interaction.user.add_roles(cargo)
+                    else:
+                        print(f"⚠️ Cargo Em Analise não encontrado: {cargo_id}")
+
+                except (ValueError, TypeError) as e:
+                    print(f"⚠️ ID do cargo Em Analise inválido: {e}")
+                except discord.Forbidden:
+                    print("❌ O bot não tem permissão para dar o cargo Em Analise.")
+
             embed = discord.Embed(
                 title="✅ Membro Registrado",
                 description=f"{membro.mention} entrou como **Em Análise** e aguarda aprovação da liderança.",
