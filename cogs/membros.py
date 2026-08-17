@@ -94,7 +94,7 @@ class Membros(commands.Cog):
         altura="Altura no jogo (ex: 1.75)",
         estilo_luta="Estilo de luta principal",
     )
-    async def registrar(
+        async def registrar(
         self,
         interaction: discord.Interaction,
         membro: discord.Member,
@@ -113,9 +113,14 @@ class Membros(commands.Cog):
                 return
 
             if not await self.tem_alguma_funcao(
-                interaction.user, ["Lider", "Vice-Lider", "Líder de Divisão"], gang_id
+                interaction.user,
+                ["Lider", "Vice-Lider", "Líder de Divisão"],
+                gang_id
             ):
-                return await interaction.followup.send("❌ Sem permissão.", ephemeral=True)
+                return await interaction.followup.send(
+                    "❌ Sem permissão.",
+                    ephemeral=True
+                )
 
             discord_id = str(membro.id)
             discord_username = str(membro)
@@ -133,6 +138,7 @@ class Membros(commands.Cog):
                 discord_id,
                 gang_id,
             )
+
             if existente:
                 return await interaction.followup.send(
                     "⚠️ Este membro já está registrado no banco de dados desta gang.",
@@ -140,17 +146,34 @@ class Membros(commands.Cog):
                 )
 
             avatar_hash = membro.avatar.key if membro.avatar else None
-            
-            print(f"🔥 INSERT NOVO | gang_id={gang_id} | membro={discord_id}")
-        
+
+            print(
+                f"🔥 INSERT NOVO | gang_id={gang_id} | membro={discord_id}"
+            )
+
+            # Registrar membro no banco
             await execute(
                 """
                 INSERT INTO membros (
-                    discord_id, discord_username, nome_roblox, nome_rp, genero,
-                    altura_jogo, estilo_luta_principal, cargo, status,
-                    data_entrada, avatar_hash, gang_id
+                    discord_id,
+                    discord_username,
+                    nome_roblox,
+                    nome_rp,
+                    genero,
+                    altura_jogo,
+                    estilo_luta_principal,
+                    cargo,
+                    status,
+                    data_entrada,
+                    avatar_hash,
+                    gang_id
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, 'Em Analise', 'Ativo', $8, $9, $10)
+                VALUES (
+                    $1, $2, $3, $4, $5, $6, $7,
+                    'Em Analise',
+                    'Ativo',
+                    $8, $9, $10
+                )
                 """,
                 discord_id,
                 discord_username,
@@ -164,49 +187,121 @@ class Membros(commands.Cog):
                 gang_id,
             )
 
-            # Buscar o ID do cargo "Em Analise" configurado para a gang
+            # =============================================
+            # DAR CARGO "EM ANALISE"
+            # =============================================
+
             cargo_row = await fetch_one(
-                    """
-                    SELECT valor
-                    FROM gang_config
-                    WHERE gang_id = $1
-                      AND chave = 'cargo_id:Em Analise'
-                    """,
-                    gang_id,
-                )
+                """
+                SELECT valor
+                FROM gang_config
+                WHERE gang_id = $1
+                  AND chave = 'cargo_id:Em Analise'
+                """,
+                gang_id,
+            )
 
             if cargo_row and cargo_row["valor"]:
                 try:
                     cargo_id = int(cargo_row["valor"])
                     cargo = interaction.guild.get_role(cargo_id)
 
-                    if cargo:
-                        await interaction.user.add_roles(cargo)
-                    else:
-                        print(f"⚠️ Cargo Em Analise não encontrado: {cargo_id}")
+                    if cargo is None:
+                        print(
+                            f"⚠️ Cargo Em Analise não encontrado no servidor: {cargo_id}"
+                        )
 
-                except (ValueError, TypeError) as e:
-                    print(f"⚠️ ID do cargo Em Analise inválido: {e}")
+                    elif cargo >= interaction.guild.me.top_role:
+                        print(
+                            f"❌ Não posso dar o cargo {cargo.name}. "
+                            f"Ele está acima ou no mesmo nível do meu maior cargo."
+                        )
+
+                    else:
+                        await membro.add_roles(
+                            cargo,
+                            reason=(
+                                f"Membro registrado na gang "
+                                f"{gang_id} como Em Análise"
+                            )
+                        )
+
+                        print(
+                            f"✅ Cargo Em Analise dado para "
+                            f"{membro} ({membro.id})"
+                        )
+
+                except (ValueError, TypeError):
+                    print(
+                        f"⚠️ ID do cargo Em Analise inválido: "
+                        f"{cargo_row['valor']}"
+                    )
+
                 except discord.Forbidden:
-                    print("❌ O bot não tem permissão para dar o cargo Em Analise.")
+                    print(
+                        "❌ O bot não possui permissão para gerenciar cargos."
+                    )
+
+                except Exception as e:
+                    print(
+                        f"❌ Erro ao dar cargo Em Analise: {e}"
+                    )
+
+            else:
+                print(
+                    f"⚠️ Não existe cargo_id:Em Analise "
+                    f"configurado para a gang {gang_id}"
+                )
+
+            # =============================================
+            # EMBED DE CONFIRMAÇÃO
+            # =============================================
 
             embed = discord.Embed(
                 title="✅ Membro Registrado",
-                description=f"{membro.mention} entrou como **Em Análise** e aguarda aprovação da liderança.",
+                description=(
+                    f"{membro.mention} entrou como **Em Análise** "
+                    "e aguarda aprovação da liderança."
+                ),
                 color=discord.Color.gold(),
             )
-            embed.add_field(name="Discord", value=discord_username, inline=True)
-            embed.add_field(name="Roblox", value=nome_roblox, inline=True)
-            embed.add_field(name="Altura", value=f"{altura}m", inline=True)
+
+            embed.add_field(
+                name="Discord",
+                value=discord_username,
+                inline=True
+            )
+
+            embed.add_field(
+                name="Roblox",
+                value=nome_roblox,
+                inline=True
+            )
+
+            embed.add_field(
+                name="Altura",
+                value=f"{altura}m",
+                inline=True
+            )
+
             if nome_rp:
-                embed.add_field(name="Nome RP", value=nome_rp, inline=True)
+                embed.add_field(
+                    name="Nome RP",
+                    value=nome_rp,
+                    inline=True
+                )
+
             if estilo_luta:
-                embed.add_field(name="Estilo de Luta", value=estilo_luta, inline=True)
+                embed.add_field(
+                    name="Estilo de Luta",
+                    value=estilo_luta,
+                    inline=True
+                )
 
             await interaction.followup.send(embed=embed)
+
         except Exception as e:
             await self.erro(interaction, e)
-
     # =============================================
     # COMANDO: /remover-registro
     # =============================================
