@@ -39,32 +39,32 @@ class Membros(commands.Cog):
 
     # ========== PERMISSÕES (por gang) ==========
     async def tem_permissao(
-    self,
-    member: discord.Member,
-    funcao: str,
-    gang_id: int
-) -> bool:
+        self,
+        member: discord.Member,
+        funcao: str,
+        gang_id: int
+    ) ->     bool:
 
-    row = await fetch_one(
-        """
-        SELECT valor
-        FROM gang_config
-        WHERE gang_id = $1
-          AND chave = $2
-        """,
-        gang_id,
-        f"cargo_id:{funcao}",
-    )
+        row = await fetch_one(
+            """
+            SELECT valor
+            FROM gang_config
+            WHERE gang_id = $1
+              AND chave = $2
+            """,
+            gang_id,
+            f"cargo_id:{funcao}",
+        )
 
-    if not row or not row["valor"]:
-        return False
+        if not row or not row["valor"]:
+            return False
 
-    try:
-        role_id = int(row["valor"])
-    except (TypeError, ValueError):
-        return False
+        try:
+            role_id = int(row["valor"])
+        except (TypeError, ValueError):
+            return False
 
-    return any(role.id == role_id for role in member.roles)
+        return any(role.id == role_id for role in member.roles)
 
     async def tem_alguma_funcao(self, member: discord.Member, funcoes: list, gang_id: int) -> bool:
         for funcao in funcoes:
