@@ -94,7 +94,7 @@ class Membros(commands.Cog):
         altura="Altura no jogo (ex: 1.75)",
         estilo_luta="Estilo de luta principal",
     )
-        async def registrar(
+    async def registrar(
         self,
         interaction: discord.Interaction,
         membro: discord.Member,
