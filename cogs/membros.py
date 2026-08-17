@@ -126,7 +126,9 @@ class Membros(commands.Cog):
                 )
 
             avatar_hash = membro.avatar.key if membro.avatar else None
-
+            
+            print(f"🔥 INSERT NOVO | gang_id={gang_id} | membro={discord_id}")
+        
             await execute(
                 """
                 INSERT INTO membros (
