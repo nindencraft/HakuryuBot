@@ -114,7 +114,7 @@ class Membros(commands.Cog):
 
             if not await self.tem_alguma_funcao(
                 interaction.user,
-                ["Lider", "Vice-Lider", "Líder de Divisão"],
+                ["Lider", "Vice-Lider", "Staff", "Recrutador"],
                 gang_id
             ):
                 return await interaction.followup.send(
